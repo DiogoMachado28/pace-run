@@ -1014,9 +1014,12 @@ async function doSignup() {
   else { showLoginError('✓ Verifica o teu email para confirmar a conta.'); setLoginLoading(false); }
 }
 async function doLogout() {
-  await supa.auth.signOut();
+  try { await supa.auth.signOut(); } catch(e) {}
   runs = []; gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
+  stravaTokens = null;
   currentUser = null;
+  // Clear IndexedDB cache
+  try { await Promise.all([dbSet('runs',[]),dbSet('gpxRoutes',{}),dbSet('gpxSplits',{}),dbSet('gpxPoints',{})]); } catch(e){}
   showLoginScreen();
 }
 function showLoginError(msg) {
@@ -3388,10 +3391,10 @@ function drawLineChart(ctx, labels, values, color) {
 // ══════════════════════════════════════════
 //  UTILS
 // ══════════════════════════════════════════
-function showToast(msg) {
+function showToast(msg, duration = 2500) {
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2500);
+  setTimeout(() => t.classList.remove('show'), duration);
 }
 
 async function clearAllData() {
@@ -3578,35 +3581,41 @@ async function syncStrava(fullSync = false) {
 }
 
 async function handleStravaCallback(code) {
-  if (!code || !currentUser) return;
-
-  showToast('A ligar ao Strava...');
-  const res = await fetch(STRAVA_EDGE_FN, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'exchange', code }),
-  });
-  const data = await res.json();
-  if (!data.access_token) { showToast('Erro ao ligar ao Strava'); return; }
-
-  // Save tokens
-  await supa.from('strava_tokens').upsert({
-    user_id: currentUser.id,
-    access_token: data.access_token,
-    refresh_token: data.refresh_token,
-    expires_at: data.expires_at,
-    athlete_id: data.athlete?.id,
-  });
-  stravaTokens = {
-    access_token: data.access_token,
-    refresh_token: data.refresh_token,
-    expires_at: data.expires_at,
-    athlete_id: data.athlete?.id,
-  };
-  updateStravaBtn();
-
-  // Import all activities
-  await syncStrava(true);
+  if (!code || !currentUser) {
+    showToast(`Erro: code=${!!code} user=${!!currentUser}`);
+    return;
+  }
+  showToast('A trocar código Strava...');
+  try {
+    const res = await fetch(STRAVA_EDGE_FN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'exchange', code }),
+    });
+    const data = await res.json();
+    if (!data.access_token) {
+      showToast('Erro Strava: ' + (data.message || data.error || JSON.stringify(data)), 6000);
+      return;
+    }
+    showToast('Token obtido, a guardar...');
+    await supa.from('strava_tokens').upsert({
+      user_id: currentUser.id,
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+      expires_at: data.expires_at,
+      athlete_id: data.athlete?.id,
+    });
+    stravaTokens = {
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+      expires_at: data.expires_at,
+      athlete_id: data.athlete?.id,
+    };
+    updateStravaBtn();
+    await syncStrava(true);
+  } catch(e) {
+    showToast('Erro: ' + e.message);
+  }
 }
 // ══════════════════════════════════════════
 // Init: show login screen while auth state is determined
