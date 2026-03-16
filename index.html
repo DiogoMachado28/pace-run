@@ -1052,15 +1052,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Auth state — drives the whole app lifecycle
 supa.auth.onAuthStateChange(async (event, session) => {
+  console.log('Auth event:', event, 'user:', session?.user?.email);
   if (session?.user) {
     currentUser = session.user;
     showApp();
     await load();
     await loadStravaTokens();
     renderAll();
-    // Handle Strava OAuth callback if returning from Strava
-    console.log('Auth ready, _stravaCodeOnLoad:', _stravaCodeOnLoad);
     if (_stravaCodeOnLoad) {
+      console.log('Auth ready, calling Strava callback');
       await handleStravaCallback(_stravaCodeOnLoad);
     }
   } else {
@@ -1070,6 +1070,21 @@ supa.auth.onAuthStateChange(async (event, session) => {
     showLoginScreen();
   }
 });
+
+// Also check session immediately (handles page reload after Strava redirect)
+(async () => {
+  const { data: { session } } = await supa.auth.getSession();
+  console.log('Immediate session check:', session?.user?.email || 'none');
+  if (session?.user && _stravaCodeOnLoad) {
+    console.log('Session found on load with Strava code, processing...');
+    currentUser = session.user;
+    showApp();
+    await load();
+    await loadStravaTokens();
+    renderAll();
+    await handleStravaCallback(_stravaCodeOnLoad);
+  }
+})();
 
 // ══════════════════════════════════════════
 //  INDEXEDDB (cache local)
@@ -3460,7 +3475,9 @@ async function stravaAction() {
 }
 
 function connectStrava() {
-  const url = `https://www.strava.com/oauth/authorize?client_id=${STRAVA_CLIENT_ID}&redirect_uri=${encodeURIComponent(STRAVA_REDIRECT)}&response_type=code&scope=${STRAVA_SCOPE}`;
+  const state = 'strava_' + Date.now();
+  sessionStorage.setItem('strava_state', state);
+  const url = `https://www.strava.com/oauth/authorize?client_id=${STRAVA_CLIENT_ID}&redirect_uri=${encodeURIComponent(STRAVA_REDIRECT)}&response_type=code&scope=${STRAVA_SCOPE}&state=${state}&approval_prompt=force`;
   window.location.href = url;
 }
 
@@ -3625,6 +3642,36 @@ async function handleStravaCallback(code) {
 // Init: show login screen while auth state is determined
 // onAuthStateChange above will handle load() + renderAll() once session is confirmed
 showLoginScreen();
+
+// If Strava code was captured and user is already logged in, handle immediately
+if (_stravaCodeOnLoad) {
+  supa.auth.getSession().then(({ data: { session } }) => {
+    if (session?.user) {
+      currentUser = session.user;
+      showApp();
+      load().then(() => {
+        loadStravaTokens().then(() => {
+          renderAll();
+          handleStravaCallback(_stravaCodeOnLoad);
+        });
+      });
+    }
+  });
+}
+
+// If returning from Strava OAuth, handle after session is confirmed
+if (_stravaCodeOnLoad) {
+  supa.auth.getSession().then(async ({ data: { session } }) => {
+    if (session?.user) {
+      currentUser = session.user;
+      showApp();
+      await load();
+      await loadStravaTokens();
+      renderAll();
+      await handleStravaCallback(_stravaCodeOnLoad);
+    }
+  });
+}
 
 // ── PWA: Service Worker (inline via blob) ──
 if ('serviceWorker' in navigator) {
