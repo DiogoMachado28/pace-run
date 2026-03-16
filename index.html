@@ -1244,6 +1244,7 @@ async function load() {
         dbSet('runs', runs), dbSet('gpxRoutes', gpxRoutes),
         dbSet('gpxSplits', gpxSplits), dbSet('gpxPoints', gpxPoints),
       ]).catch(() => {});
+      renderAll(); // re-render with fresh Supabase data
     }
   } catch(e) { console.warn('Supabase load error:', e); }
 }
