@@ -1057,14 +1057,17 @@ supa.auth.onAuthStateChange(async (event, session) => {
   if (session?.user) {
     currentUser = session.user;
     showApp();
-    // Handle Strava callback FIRST before load() which can be slow
+    console.log('stravaCode:', _stravaCodeOnLoad, 'event:', event);
     if (_stravaCodeOnLoad && event === 'SIGNED_IN') {
       console.log('Processing Strava callback before load...');
       await handleStravaCallback(_stravaCodeOnLoad);
     }
+    console.log('Starting load...');
     try { await load(); } catch(e) { console.log('load error:', e.message); }
+    console.log('Load done, rendering...');
     try { await loadStravaTokens(); } catch(e) { console.log('loadStrava error:', e.message); }
     renderAll();
+    console.log('renderAll done, runs:', runs.length);
   } else {
     currentUser = null;
     runs = []; gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
@@ -1244,9 +1247,9 @@ async function load() {
         dbSet('runs', runs), dbSet('gpxRoutes', gpxRoutes),
         dbSet('gpxSplits', gpxSplits), dbSet('gpxPoints', gpxPoints),
       ]).catch(() => {});
-      renderAll(); // re-render with fresh Supabase data
     }
-  } catch(e) { console.warn('Supabase load error:', e); }
+    renderAll(); // always re-render after Supabase responds
+  } catch(e) { console.warn('Supabase load error:', e); renderAll(); }
 }
 
 // ══════════════════════════════════════════
