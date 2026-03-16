@@ -1145,20 +1145,24 @@ async function save() {
 // ══════════════════════════════════════════
 const RACE_OVERRIDES = [
   {
-    date: '2026-01-10',          // Corrida dos Reis PVZ 2026
+    user_email: 'jdfmachado@gmail.com', // só aplica a esta conta
+    date: '2026-01-10',
     name: 'Corrida dos Reis PVZ 2026',
   },
   {
-    date: '2026-03-15',          // Corrida do Pai 2026
-    name: 'Corrida do Pai 2026',
+    user_email: 'jdfmachado@gmail.com', // só aplica a esta conta
+    date: '2026-03-15',
+    name: 'Corrida do dia do Pai 2026',
     dist: 10.0,                  // oficial (Strava: 9.99km)
     secs: 2920,                  // oficial 48:40
-    completeSplits: true,        // extrapolar último split parcial até à distância oficial
+    completeSplits: true,
   },
 ];
 
 function applyRaceOverrides() {
   for (const ov of RACE_OVERRIDES) {
+    // Only apply if user_email matches (protection: prevents affecting other accounts)
+    if (ov.user_email && currentUser?.email !== ov.user_email) continue;
     const run = runs.find(r => r.date.startsWith(ov.date));
     if (!run) continue;
     if (ov.name) run.name = ov.name;
@@ -1452,7 +1456,7 @@ function parseGPX(text, filename) {
 
 async function finishImport(count) {
   runs.sort((a,b) => new Date(a.date) - new Date(b.date));
-  runs.forEach((r, i) => { r.name = `${i+1}ª corrida`; });
+  runs.forEach((r, i) => { r.name = `${i+1}ª`; });
   runs.sort((a,b) => new Date(b.date) - new Date(a.date));
   applyRaceOverrides(); // apply after numbering so names override the "Nª corrida" default
   await save();
@@ -3450,8 +3454,10 @@ let stravaTokens = null; // { access_token, refresh_token, expires_at, athlete_i
 
 async function loadStravaTokens() {
   if (!currentUser) return;
-  const { data } = await supa.from('strava_tokens').select('*').eq('user_id', currentUser.id).single();
-  stravaTokens = data || null;
+  try {
+    const { data, error } = await supa.from('strava_tokens').select('*').eq('user_id', currentUser.id).maybeSingle();
+    stravaTokens = data || null;
+  } catch(e) { stravaTokens = null; }
   updateStravaBtn();
 }
 
@@ -3596,7 +3602,7 @@ async function syncStrava(fullSync = false) {
     runs.sort((a, b) => new Date(a.date) - new Date(b.date));
     runs.forEach((r, i) => {
       if (!RACE_OVERRIDES.some(ov => r.date.startsWith(ov.date))) {
-        r.name = `${i + 1}ª corrida`;
+        r.name = `${i + 1}ª`;
       }
     });
     runs.sort((a, b) => new Date(b.date) - new Date(a.date));
