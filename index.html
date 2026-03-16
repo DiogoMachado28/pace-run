@@ -1057,13 +1057,14 @@ supa.auth.onAuthStateChange(async (event, session) => {
   if (session?.user) {
     currentUser = session.user;
     showApp();
+    // Handle Strava callback FIRST before load() which can be slow
+    if (_stravaCodeOnLoad && event === 'SIGNED_IN') {
+      console.log('Processing Strava callback before load...');
+      await handleStravaCallback(_stravaCodeOnLoad);
+    }
     try { await load(); } catch(e) { console.log('load error:', e.message); }
     try { await loadStravaTokens(); } catch(e) { console.log('loadStrava error:', e.message); }
     renderAll();
-    console.log('stravaCode check:', _stravaCodeOnLoad?.substring(0,8));
-    if (_stravaCodeOnLoad) {
-      await handleStravaCallback(_stravaCodeOnLoad);
-    }
   } else {
     currentUser = null;
     runs = []; gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
@@ -3471,9 +3472,13 @@ async function getValidStravaToken() {
   if (!stravaTokens) return null;
   // Refresh if expired (with 5min buffer)
   if (Date.now() / 1000 > stravaTokens.expires_at - 300) {
+    const session1 = await supa.auth.getSession();
     const res = await fetch(STRAVA_EDGE_FN, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session1.data.session?.access_token}`,
+      },
       body: JSON.stringify({ action: 'refresh', refresh_token: stravaTokens.refresh_token }),
     });
     const data = await res.json();
@@ -3597,9 +3602,13 @@ async function handleStravaCallback(code) {
   showToast('A trocar código Strava...', 8000);
   try {
     console.log('Calling edge function...');
+    const session2 = await supa.auth.getSession();
     const res = await fetch(STRAVA_EDGE_FN, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session2.data.session?.access_token}`,
+      },
       body: JSON.stringify({ action: 'exchange', code }),
     });
     console.log('Edge fn status:', res.status);
