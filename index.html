@@ -1,0 +1,3429 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PACE">
+<meta name="theme-color" content="#0a0a0f">
+<meta name="description" content="Running analytics — analisa as tuas corridas Strava">
+<link rel="manifest" href="data:application/json,%7B%22name%22%3A%22PACE%20%E2%80%94%20Running%20Analytics%22%2C%22short_name%22%3A%22PACE%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230a0a0f%22%2C%22theme_color%22%3A%22%230a0a0f%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%3D%2527http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%2527%2520viewBox%3D%25270%25200%2520512%2520512%2527%253E%253Crect%2520width%3D%2527512%2527%2520height%3D%2527512%2527%2520rx%3D%2527100%2527%2520fill%3D%2527%25230a0a0f%2527%2F%253E%253Ctext%2520x%3D%2527256%2527%2520y%3D%2527340%2527%2520font-size%3D%2527280%2527%2520text-anchor%3D%2527middle%2527%2520fill%3D%2527%2523e8ff47%2527%253E%25F0%259F%258F%2583%253C%2Ftext%253E%253C%2Fsvg%253E%22%2C%22sizes%22%3A%22512x512%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%7D">
+<title>PACE — Running Analytics</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+<style>
+:root {
+  --bg: #0a0a0f;
+  --surface: #111118;
+  --surface2: #1a1a24;
+  --border: #2a2a3a;
+  --accent: #e8ff47;
+  --accent2: #ff6b35;
+  --text: #f0f0f5;
+  --muted: #6b6b80;
+  --success: #4ade80;
+  --font-display: 'Syne', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  height: 100%;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* ── APP SHELL ── */
+#app {
+  display: none;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  padding-top: var(--safe-top);
+}
+
+/* ── HEADER ── */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg);
+}
+.logo {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: var(--accent);
+}
+.logo span { color: var(--text); font-weight: 400; }
+.header-actions { display: flex; gap: 8px; }
+.btn-icon {
+  width: 36px; height: 36px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--text); font-size: 16px;
+  transition: all .15s;
+}
+.btn-icon:active { background: var(--surface2); transform: scale(0.95); }
+
+/* ── SCROLL CONTENT ── */
+#content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* ── PAGES ── */
+.page { display: none; animation: fadeIn .3s ease; }
+.page.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ── BOTTOM NAV ── */
+nav {
+  display: flex;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  flex-shrink: 0;
+  padding-bottom: var(--safe-bottom);
+}
+.nav-btn {
+  flex: 1;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 2px; padding: 8px 2px 10px;
+  cursor: pointer;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  transition: color .15s;
+  border: none; background: none;
+  white-space: nowrap;
+  overflow: hidden;
+  min-width: 0;
+}
+.nav-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+.nav-btn.active { color: var(--accent); }
+
+/* ── EMPTY STATE ── */
+.empty-state {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 60px 32px;
+  gap: 16px; text-align: center;
+}
+.empty-icon { font-size: 56px; }
+.empty-title { font-family: var(--font-display); font-size: 20px; font-weight: 700; }
+.empty-desc { color: var(--muted); font-size: 13px; line-height: 1.6; }
+
+/* ── UPLOAD AREA ── */
+.upload-zone {
+  margin: 20px;
+  border: 2px dashed var(--border);
+  border-radius: 16px;
+  padding: 32px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .2s;
+  background: var(--surface);
+}
+.upload-zone.dragover, .upload-zone:active {
+  border-color: var(--accent);
+  background: rgba(232,255,71,.05);
+}
+.upload-zone h3 { font-family: var(--font-display); font-size: 16px; margin: 12px 0 6px; }
+.upload-zone p { color: var(--muted); font-size: 12px; }
+.upload-icon { font-size: 36px; }
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--accent); color: #0a0a0f;
+  font-family: var(--font-display); font-weight: 700;
+  font-size: 13px; padding: 12px 24px;
+  border-radius: 12px; border: none; cursor: pointer;
+  margin-top: 16px; letter-spacing: 0.3px;
+  transition: all .15s;
+}
+.btn-primary:active { transform: scale(0.97); opacity: .9; }
+#file-input { display: none; }
+
+/* ── DASHBOARD ── */
+.section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 20px 12px;
+}
+.section-title {
+  font-family: var(--font-display); font-size: 13px;
+  font-weight: 700; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--muted);
+}
+
+/* ── STATS GRID ── */
+.stats-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 12px; padding: 0 20px 20px;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px; padding: 16px;
+  position: relative; overflow: hidden;
+}
+.stat-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: var(--accent);
+}
+.stat-card.orange::before { background: var(--accent2); }
+.stat-card.green::before { background: var(--success); }
+.stat-card.blue::before { background: #60a5fa; }
+.stat-label {
+  font-size: 10px; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 6px;
+}
+.stat-value {
+  font-family: var(--font-display); font-size: 26px;
+  font-weight: 800; line-height: 1;
+  color: var(--text);
+}
+.stat-unit { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 2px; }
+.stat-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+/* ── STREAK ── */
+.streak-banner {
+  margin: 0 20px 20px;
+  background: linear-gradient(135deg, #1a1a10, #1a1500);
+  border: 1px solid rgba(232,255,71,.2);
+  border-radius: 16px; padding: 16px 20px;
+  display: flex; align-items: center; gap: 16px;
+}
+.streak-fire { font-size: 32px; }
+.streak-info { flex: 1; }
+.streak-num {
+  font-family: var(--font-display); font-size: 28px;
+  font-weight: 800; color: var(--accent); line-height: 1;
+}
+.streak-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+/* ── HEATMAP ── */
+.heatmap-wrap { padding: 0 20px 24px; }
+.heatmap-canvas-wrap { position: relative; }
+#heatmap-canvas { width: 100%; cursor: pointer; display: block; }
+.heatmap-tooltip {
+  position: absolute; background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 6px 10px; font-size: 11px; pointer-events: none;
+  opacity: 0; transition: opacity .15s; z-index: 10;
+  white-space: nowrap;
+}
+.heatmap-tooltip.visible { opacity: 1; }
+.heatmap-legend {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 10px; justify-content: flex-end;
+  font-size: 10px; color: var(--muted);
+}
+.hm-leg-cell { width: 10px; height: 10px; border-radius: 2px; }
+
+/* ── RUNS LIST ── */
+.runs-list { padding: 0 20px 20px; display: flex; flex-direction: column; gap: 10px; }
+.run-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px; padding: 14px 16px;
+  display: flex; align-items: center; gap: 14px;
+  cursor: pointer; transition: all .15s;
+  position: relative; overflow: hidden;
+}
+.run-card:active { transform: scale(0.98); background: var(--surface2); }
+.run-card::after {
+  content: '';
+  position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--accent);
+}
+.run-type-icon {
+  width: 40px; height: 40px; border-radius: 10px;
+  background: rgba(232,255,71,.1);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0;
+}
+.run-info { flex: 1; min-width: 0; }
+.run-name {
+  font-family: var(--font-display); font-size: 14px;
+  font-weight: 700; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis;
+}
+.run-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.run-stats { text-align: right; flex-shrink: 0; }
+.run-dist {
+  font-family: var(--font-display); font-size: 18px;
+  font-weight: 800; color: var(--accent); line-height: 1;
+}
+.run-pace { font-size: 11px; color: var(--muted); }
+
+/* ── CHART ── */
+.chart-wrap {
+  margin: 0 20px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px; overflow: hidden;
+}
+.chart-header { padding: 14px 16px 0; }
+.chart-title { font-family: var(--font-display); font-size: 14px; font-weight: 700; }
+.chart-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 16px 14px; }
+
+/* ── PACE ANALYSIS ── */
+.pace-bars { padding: 0 20px 24px; display: flex; flex-direction: column; gap: 8px; }
+.pace-bar-row { display: flex; align-items: center; gap: 10px; }
+.pace-bar-label { font-size: 11px; color: var(--muted); width: 70px; flex-shrink: 0; text-align: right; }
+.pace-bar-track {
+  flex: 1; height: 24px; background: var(--surface2);
+  border-radius: 6px; overflow: hidden; position: relative;
+}
+.pace-bar-fill {
+  height: 100%; border-radius: 6px;
+  background: linear-gradient(90deg, var(--accent2), var(--accent));
+  transition: width .8s cubic-bezier(.4,0,.2,1);
+  display: flex; align-items: center; justify-content: flex-end;
+  padding-right: 8px;
+}
+.pace-bar-val { font-size: 10px; font-weight: 500; color: #0a0a0f; }
+
+/* ── MAP ── */
+#map-container {
+  margin: 0 20px 20px;
+  border-radius: 16px; overflow: hidden;
+  border: 1px solid var(--border);
+  height: 300px;
+  background: var(--surface);
+}
+#leaflet-map { height: 100%; width: 100%; }
+.map-empty {
+  height: 100%; display: flex; align-items: center;
+  justify-content: center; flex-direction: column; gap: 8px;
+  color: var(--muted); font-size: 13px;
+}
+.map-run-select {
+  margin: 0 20px 12px;
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); font-family: var(--font-mono);
+  font-size: 13px; padding: 10px 14px; border-radius: 10px;
+  width: calc(100% - 40px); appearance: none;
+}
+
+/* ── RUN DETAIL MODAL ── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.75); z-index: 999;
+  align-items: flex-end;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--surface);
+  border-radius: 24px 24px 0 0;
+  width: 100%; padding: 20px;
+  max-height: 80vh; overflow-y: auto;
+  animation: slideUp .3s ease;
+  padding-bottom: calc(20px + var(--safe-bottom));
+}
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.modal-handle {
+  width: 36px; height: 4px; border-radius: 2px;
+  background: var(--border); margin: 0 auto 20px;
+}
+.modal-title { font-family: var(--font-display); font-size: 20px; font-weight: 800; margin-bottom: 4px; }
+.modal-date { font-size: 12px; color: var(--muted); margin-bottom: 20px; }
+.modal-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+.modal-stat { background: var(--bg); border-radius: 10px; padding: 12px; text-align: center; }
+.modal-stat-val { font-family: var(--font-display); font-size: 18px; font-weight: 800; color: var(--accent); }
+.modal-stat-lbl { font-size: 10px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+.btn-delete {
+  width: 100%; padding: 12px;
+  background: rgba(255,59,48,.1); border: 1px solid rgba(255,59,48,.3);
+  color: #ff3b30; border-radius: 12px;
+  font-family: var(--font-display); font-weight: 700; font-size: 13px;
+  cursor: pointer; transition: all .15s;
+}
+.btn-delete:active { background: rgba(255,59,48,.2); }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 0; }
+
+/* ── TOAST ── */
+.toast {
+  position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+  background: var(--accent); color: #0a0a0f;
+  font-family: var(--font-display); font-weight: 700; font-size: 13px;
+  padding: 10px 20px; border-radius: 100px;
+  opacity: 0; transition: opacity .3s; z-index: 9999;
+  white-space: nowrap; pointer-events: none;
+}
+.toast.show { opacity: 1; }
+
+/* ── FILTERS ── */
+.filter-row {
+  display: flex; gap: 8px; padding: 0 20px 16px;
+  overflow-x: auto; scrollbar-width: none;
+}
+.filter-row::-webkit-scrollbar { display: none; }
+.filter-chip {
+  padding: 7px 14px; border-radius: 100px;
+  border: 1px solid var(--border);
+  font-family: var(--font-mono); font-size: 11px;
+  cursor: pointer; white-space: nowrap;
+  background: var(--surface); color: var(--muted);
+  transition: all .15s; flex-shrink: 0;
+}
+.filter-chip.active {
+  background: var(--accent); border-color: var(--accent);
+  color: #0a0a0f; font-weight: 500;
+}
+
+/* ── MONTHLY SUMMARY ── */
+.monthly-row {
+  display: flex; align-items: center;
+  padding: 12px 20px; gap: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.monthly-month {
+  width: 36px; height: 36px; border-radius: 8px;
+  background: var(--surface2); display: flex;
+  align-items: center; justify-content: center;
+  font-family: var(--font-display); font-size: 11px;
+  font-weight: 700; flex-shrink: 0;
+}
+.monthly-info { flex: 1; }
+.monthly-name { font-size: 14px; font-weight: 500; }
+.monthly-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.monthly-km { font-family: var(--font-display); font-size: 18px; font-weight: 800; color: var(--accent); }
+
+/* ── PB SECTION ── */
+.pb-list { padding: 0 20px 24px; }
+.pb-item {
+  display: flex; align-items: center;
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+  gap: 12px; transition: background .15s; border-radius: 8px;
+  margin: 0 -8px; padding-left: 8px; padding-right: 8px;
+}
+.pb-item:active { background: var(--surface2); }
+.pb-medal { font-size: 22px; flex-shrink: 0; }
+.pb-info { flex: 1; min-width: 0; }
+.pb-dist { font-family: var(--font-display); font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pb-date { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.pb-time { font-family: var(--font-display); font-size: 20px; font-weight: 800; color: var(--accent); }
+
+/* ── SORT HEADER ── */
+.sort-col {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.5px; text-transform: uppercase;
+  color: var(--muted); cursor: pointer; padding: 4px 0 4px 8px;
+  transition: color .15s; user-select: none; flex-shrink: 0;
+  display: flex; align-items: center; gap: 2px; justify-content: flex-end;
+}
+.sort-col:active, .sort-col.active { color: var(--accent); }
+.sort-arrow { font-size: 9px; min-width: 8px; }
+.tab-row {
+  display: flex; border-bottom: 1px solid var(--border);
+  padding: 0 20px; gap: 0; flex-shrink: 0;
+}
+.tab-btn {
+  padding: 12px 16px 10px;
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.5px; text-transform: uppercase;
+  color: var(--muted); cursor: pointer;
+  border: none; background: none;
+  border-bottom: 2px solid transparent;
+  transition: all .2s; flex: 1; text-align: center;
+}
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px">
+  <div style="width:100%;max-width:360px">
+    <div style="font-family:var(--font-display);font-size:32px;font-weight:800;color:var(--accent);margin-bottom:4px">PACE<span style="color:var(--text);font-weight:400">.run</span></div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:40px">Running analytics</div>
+
+    <div id="login-error" style="display:none;background:rgba(255,59,48,.15);border:1px solid rgba(255,59,48,.3);border-radius:10px;padding:10px 14px;font-size:12px;color:#ff6b6b;margin-bottom:16px"></div>
+
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <input id="login-email" type="email" placeholder="Email" autocomplete="email"
+        style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;font-size:15px;color:var(--text);outline:none;width:100%;box-sizing:border-box">
+      <input id="login-password" type="password" placeholder="Password" autocomplete="current-password"
+        style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;font-size:15px;color:var(--text);outline:none;width:100%;box-sizing:border-box">
+      <button onclick="doLogin()" id="btn-login"
+        style="background:var(--accent);color:#0a0a0f;border:none;border-radius:12px;padding:14px;font-family:var(--font-display);font-size:15px;font-weight:800;cursor:pointer;letter-spacing:1px">
+        ENTRAR
+      </button>
+      <button onclick="doSignup()" id="btn-signup"
+        style="background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:12px;padding:14px;font-family:var(--font-display);font-size:13px;font-weight:700;cursor:pointer">
+        CRIAR CONTA
+      </button>
+    </div>
+    <div id="login-loading" style="display:none;text-align:center;margin-top:16px;color:var(--muted);font-size:13px">A autenticar...</div>
+  </div>
+</div>
+
+<div id="app">
+  <header>
+    <div class="logo">PACE<span>.run</span></div>
+    <div class="header-actions">
+      <label for="file-input" class="btn-icon" title="Importar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      </label>
+      <button class="btn-icon" onclick="doLogout()" title="Sair" style="font-size:16px">⏻</button>
+      <button class="btn-icon" onclick="clearAllData()" title="Limpar dados">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <input type="file" id="file-input" accept=".csv,.gpx" multiple onchange="handleFileUpload(event)">
+
+  <div id="content">
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div id="dashboard-empty" class="empty-state">
+        <div class="empty-icon">🏃</div>
+        <div class="empty-title">Sem corridas ainda</div>
+        <div class="empty-desc">Importa o export do Strava (activities.csv ou ficheiros GPX) para começares a ver as tuas estatísticas.</div>
+        <label for="file-input" class="btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Importar dados Strava
+        </label>
+      </div>
+      <div id="dashboard-data" style="display:none">
+        <div class="section-header">
+          <span class="section-title">Totais</span>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Distância total</div>
+            <div class="stat-value" id="stat-total-km">—<span class="stat-unit">km</span></div>
+            <div class="stat-sub" id="stat-runs-count"></div>
+          </div>
+          <div class="stat-card orange">
+            <div class="stat-label">Tempo total</div>
+            <div class="stat-value" id="stat-total-time">—</div>
+            <div class="stat-sub" id="stat-avg-time"></div>
+          </div>
+          <div class="stat-card green">
+            <div class="stat-label">Ritmo médio</div>
+            <div class="stat-value" id="stat-avg-pace">—</div>
+            <div class="stat-sub">min/km</div>
+          </div>
+          <div class="stat-card blue">
+            <div class="stat-label">Elev. acumulada</div>
+            <div class="stat-value" id="stat-total-elev">—<span class="stat-unit">m</span></div>
+            <div class="stat-sub" id="stat-avg-elev"></div>
+          </div>
+        </div>
+
+        <div id="streak-section" class="streak-banner">
+          <div class="streak-fire">🔥</div>
+          <div class="streak-info">
+            <div class="streak-num" id="streak-num">0</div>
+            <div class="streak-label">semanas consecutivas com corrida</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-family:var(--font-display);font-size:13px;font-weight:700" id="streak-best"></div>
+            <div style="font-size:10px;color:var(--muted)">melhor streak</div>
+          </div>
+        </div>
+
+        <!-- WEEKLY GOAL -->
+        <div class="section-header">
+          <span class="section-title">Meta semanal</span>
+          <button onclick="editWeeklyGoal()" style="font-size:10px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:6px;cursor:pointer">editar</button>
+        </div>
+        <div style="padding:0 20px 4px" id="weekly-goal-wrap">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+            <div style="font-size:12px;color:var(--muted)" id="weekly-goal-label">— km esta semana</div>
+            <div style="font-family:var(--font-display);font-size:13px;font-weight:700" id="weekly-goal-pct">—</div>
+          </div>
+          <div style="height:8px;background:var(--surface2);border-radius:4px;overflow:hidden">
+            <div id="weekly-goal-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--accent2),var(--accent));border-radius:4px;transition:width .6s ease"></div>
+          </div>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px" id="weekly-goal-sub"></div>
+        </div>
+
+        <!-- MONTH COMPARISON -->
+        <div class="section-header" style="margin-top:4px">
+          <span class="section-title">Este mês vs anterior</span>
+        </div>
+        <div style="padding:0 20px 4px;display:flex;gap:12px" id="month-compare-wrap">
+          <div style="flex:1;background:var(--surface2);border-radius:10px;padding:12px">
+            <div style="font-size:10px;color:var(--muted);margin-bottom:4px" id="month-curr-label">—</div>
+            <div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--accent)" id="month-curr-km">—</div>
+            <div style="font-size:10px;color:var(--muted)" id="month-curr-runs">—</div>
+          </div>
+          <div style="display:flex;align-items:center;flex-direction:column;justify-content:center;gap:4px">
+            <div style="font-family:var(--font-display);font-size:20px;font-weight:800" id="month-delta-icon">→</div>
+            <div style="font-size:11px;font-weight:700" id="month-delta-pct">—</div>
+          </div>
+          <div style="flex:1;background:var(--surface2);border-radius:10px;padding:12px;opacity:.6">
+            <div style="font-size:10px;color:var(--muted);margin-bottom:4px" id="month-prev-label">—</div>
+            <div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--muted)" id="month-prev-km">—</div>
+            <div style="font-size:10px;color:var(--muted)" id="month-prev-runs">—</div>
+          </div>
+        </div>
+
+        <!-- BEST DAY -->
+        <div class="section-header" style="margin-top:4px">
+          <span class="section-title">Padrões de treino</span>
+        </div>
+        <div style="padding:0 20px 4px" id="patterns-wrap">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div style="background:var(--surface2);border-radius:10px;padding:12px">
+              <div style="font-size:10px;color:var(--muted);margin-bottom:4px">Melhor dia da semana</div>
+              <div style="font-family:var(--font-display);font-size:18px;font-weight:800;color:var(--accent)" id="best-day-name">—</div>
+              <div style="font-size:10px;color:var(--muted);margin-top:2px" id="best-day-pace">—</div>
+            </div>
+            <div style="background:var(--surface2);border-radius:10px;padding:12px">
+              <div style="font-size:10px;color:var(--muted);margin-bottom:4px">Próximo milestone</div>
+              <div style="font-family:var(--font-display);font-size:18px;font-weight:800;color:var(--accent2)" id="next-milestone-val">—</div>
+              <div style="font-size:10px;color:var(--muted);margin-top:2px" id="next-milestone-label">—</div>
+            </div>
+          </div>
+          <div style="margin-top:8px;background:var(--surface2);border-radius:10px;padding:12px">
+            <div style="font-size:10px;color:var(--muted);margin-bottom:6px">Dias da semana — ritmo médio</div>
+            <div id="day-of-week-bars" style="display:flex;gap:4px;align-items:flex-end;height:48px"></div>
+            <div style="display:flex;gap:4px;margin-top:4px" id="day-of-week-labels"></div>
+          </div>
+        </div>
+
+        <!-- FORM TREND (8 weeks rolling) -->
+        <div class="section-header" style="margin-top:4px">
+          <span class="section-title">Evolução de forma — 8 semanas</span>
+        </div>
+        <div class="chart-wrap" style="margin:0 20px 4px">
+          <canvas id="form-trend-chart" style="width:100%;height:80px"></canvas>
+        </div>
+
+        <!-- BADGES -->
+        <div class="section-header" style="margin-top:4px">
+          <span class="section-title">Conquistas</span>
+        </div>
+        <div id="badges-wrap" style="padding:0 20px 24px;display:flex;flex-wrap:wrap;gap:8px"></div>
+
+        <div class="section-header">
+          <span class="section-title">Km por mês</span>
+        </div>
+        <div class="chart-wrap">
+          <canvas class="chart" id="monthly-chart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- CORRIDAS -->
+    <div class="page" id="page-runs">
+      <div id="runs-empty" class="empty-state">
+        <div class="empty-icon">📋</div>
+        <div class="empty-title">Sem corridas</div>
+        <div class="empty-desc">Importa os teus dados para veres o histórico.</div>
+      </div>
+      <div id="runs-data" style="display:none">
+        <div style="padding:16px 20px 8px;display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-family:var(--font-display);font-size:24px;font-weight:800">Histórico</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px" id="runs-subtitle"></div>
+          </div>
+          <button class="btn-icon" onclick="toggleFiltersPanel()" id="filter-toggle-btn" title="Filtros avançados">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+          </button>
+        </div>
+
+        <!-- Period chips -->
+        <div class="filter-row" id="filter-row">
+          <div class="filter-chip active" onclick="filterPeriod('all',this)">Todas</div>
+          <div class="filter-chip" onclick="filterPeriod('month',this)">Este mês</div>
+          <div class="filter-chip" onclick="filterPeriod('3m',this)">3 meses</div>
+          <div class="filter-chip" onclick="filterPeriod('6m',this)">6 meses</div>
+          <div class="filter-chip" onclick="filterPeriod('year',this)">Este ano</div>
+        </div>
+
+        <!-- Advanced filters panel -->
+        <div id="adv-filters" style="display:none;padding:0 20px 16px;display:none">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:14px">
+            <div style="font-family:var(--font-display);font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">Filtros avançados</div>
+
+            <!-- Sort -->
+            <div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Ordenar por</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <div class="filter-chip active" style="font-size:10px;padding:5px 10px" onclick="setSort('date',this)">Data</div>
+                <div class="filter-chip" style="font-size:10px;padding:5px 10px" onclick="setSort('dist',this)">Distância</div>
+                <div class="filter-chip" style="font-size:10px;padding:5px 10px" onclick="setSort('pace',this)">Ritmo</div>
+                <div class="filter-chip" style="font-size:10px;padding:5px 10px" onclick="setSort('split',this)">Melhor split</div>
+                <div class="filter-chip" style="font-size:10px;padding:5px 10px" onclick="setSort('time',this)">Tempo</div>
+              </div>
+            </div>
+
+            <!-- Distance filter -->
+            <div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Distância mínima</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <div class="filter-chip active" style="font-size:10px;padding:5px 10px" onclick="setMinDist(0,this)">Todas</div>
+                <div class="filter-chip" style="font-size:10px;padding:5px 10px" onclick="setMinDist(5,this)">≥ 5km</div>
+                <div class="filter-chip" style="font-size:10px;padding:5px 10px" onclick="setMinDist(10,this)">≥ 10km</div>
+                <div class="filter-chip" style="font-size:10px;padding:5px 10px" onclick="setMinDist(21,this)">≥ 21km</div>
+              </div>
+            </div>
+
+            <!-- Pace filter -->
+            <div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Ritmo (máx min/km)</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <div class="filter-chip active" style="font-size:10px;padding:5px 10px" onclick="setMaxPace(999,this)">Todos</div>
+                <div class="filter-chip" style="font-size:10px;padding:5px 10px" onclick="setMaxPace(300,this)">≤ 5:00</div>
+                <div class="filter-chip" style="font-size:10px;padding:5px 10px" onclick="setMaxPace(330,this)">≤ 5:30</div>
+                <div class="filter-chip" style="font-size:10px;padding:5px 10px" onclick="setMaxPace(360,this)">≤ 6:00</div>
+              </div>
+            </div>
+
+            <!-- Best split filter -->
+            <div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Melhor split (máx min/km)</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <div class="filter-chip active" style="font-size:10px;padding:5px 10px" onclick="setMaxSplit(999,this)">Todos</div>
+                <div class="filter-chip" style="font-size:10px;padding:5px 10px" onclick="setMaxSplit(240,this)">≤ 4:00</div>
+                <div class="filter-chip" style="font-size:10px;padding:5px 10px" onclick="setMaxSplit(270,this)">≤ 4:30</div>
+                <div class="filter-chip" style="font-size:10px;padding:5px 10px" onclick="setMaxSplit(300,this)">≤ 5:00</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sort header row -->
+        <div id="sort-header" style="display:flex;align-items:center;padding:0 20px 8px;gap:0">
+          <div style="width:40px;flex-shrink:0"></div>
+          <div style="flex:1;min-width:0"></div>
+          <div class="sort-col" onclick="cycleSort('date')" id="sh-date" style="width:52px;text-align:right">
+            <span>data</span><span class="sort-arrow" id="sa-date"></span>
+          </div>
+          <div class="sort-col" onclick="cycleSort('dist')" id="sh-dist" style="width:52px;text-align:right">
+            <span>km</span><span class="sort-arrow" id="sa-dist"></span>
+          </div>
+          <div class="sort-col" onclick="cycleSort('time')" id="sh-time" style="width:52px;text-align:right">
+            <span>tempo</span><span class="sort-arrow" id="sa-time"></span>
+          </div>
+          <div class="sort-col" onclick="cycleSort('pace')" id="sh-pace" style="width:52px;text-align:right">
+            <span>ritmo</span><span class="sort-arrow" id="sa-pace"></span>
+          </div>
+        </div>
+
+        <div class="runs-list" id="runs-list"></div>
+      </div>
+    </div>
+
+    <!-- ANÁLISE -->    <div class="page" id="page-analysis">
+      <div id="analysis-empty" class="empty-state">
+        <div class="empty-icon">📊</div>
+        <div class="empty-title">Sem dados</div>
+        <div class="empty-desc">Importa corridas para ver a análise de ritmos.</div>
+      </div>
+      <div id="analysis-data" style="display:none">
+        <div style="padding:16px 20px 0">
+          <div style="font-family:var(--font-display);font-size:24px;font-weight:800">Análise</div>
+        </div>
+        <div class="tab-row" style="margin-top:12px">
+          <button class="tab-btn active" onclick="showAnalysisTab('pace',this)">Ritmos</button>
+          <button class="tab-btn" onclick="showAnalysisTab('treinos',this)">Treinos</button>
+          <button class="tab-btn" onclick="showAnalysisTab('monthly',this)">Mensal</button>
+          <button class="tab-btn" onclick="showAnalysisTab('pb',this)">Records</button>
+        </div>
+
+        <div id="tab-treinos" style="display:none">
+          <div style="padding:16px 20px 8px;display:flex;gap:8px;flex-wrap:wrap" id="treino-type-chips">
+            <button class="filter-chip active" onclick="filterTreinos('all',this)">Todos</button>
+            <button class="filter-chip" onclick="filterTreinos('B1',this)">B1 · Séries</button>
+            <button class="filter-chip" onclick="filterTreinos('B2',this)">B2 · Limiar</button>
+            <button class="filter-chip" onclick="filterTreinos('C',this)">C · Longo</button>
+            <button class="filter-chip" onclick="filterTreinos('A',this)">A · Contínuo</button>
+          </div>
+          <div style="padding:0 20px 12px" id="treino-summary"></div>
+          <div id="treino-alert" style="display:none;margin:0 20px 12px;padding:10px 14px;background:rgba(255,107,53,.12);border:1px solid rgba(255,107,53,.3);border-radius:10px;font-size:12px;color:var(--accent2)"></div>
+          <div id="treino-list" style="padding:0 0 24px"></div>
+        </div>
+
+        <div id="tab-pace">
+          <div class="section-header" style="padding-top:16px">
+            <span class="section-title">Distribuição de ritmos</span>
+          </div>
+          <div class="pace-bars" id="pace-distribution"></div>
+          <div class="section-header">
+            <span class="section-title">Tendência de ritmo</span>
+          </div>
+          <div class="chart-wrap">
+            <div class="chart-header">
+              <div class="chart-title">Evolução do ritmo médio</div>
+              <div class="chart-sub">Últimas corridas (min/km)</div>
+            </div>
+            <canvas class="chart" id="pace-chart"></canvas>
+          </div>
+          <div class="section-header">
+            <span class="section-title">Distância vs. Ritmo</span>
+          </div>
+          <div class="chart-wrap">
+            <div class="chart-header">
+              <div class="chart-title">Scatter: km × ritmo</div>
+            </div>
+            <canvas class="chart" id="scatter-chart"></canvas>
+          </div>
+        </div>
+
+        <div id="tab-monthly" style="display:none">
+          <div style="padding: 16px 0 0">
+            <div id="monthly-list"></div>
+          </div>
+        </div>
+
+        <div id="tab-pb" style="display:none">
+          <div class="section-header" style="padding-top:16px">
+            <span class="section-title">Personal Bests</span>
+          </div>
+          <div class="pb-list" id="pb-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HEATMAP / CALENDÁRIO -->
+    <div class="page" id="page-heatmap">
+      <div id="heatmap-empty" class="empty-state">
+        <div class="empty-icon">📅</div>
+        <div class="empty-title">Sem atividade</div>
+        <div class="empty-desc">Importa corridas para ver o teu calendário de atividade.</div>
+      </div>
+      <div id="heatmap-data" style="display:none">
+        <div style="padding:16px 20px 12px">
+          <div style="font-family:var(--font-display);font-size:24px;font-weight:800">Calendário</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px" id="heatmap-subtitle"></div>
+        </div>
+        <div class="heatmap-wrap">
+          <div class="heatmap-canvas-wrap">
+            <canvas id="heatmap-canvas"></canvas>
+            <div class="heatmap-tooltip" id="heatmap-tooltip"></div>
+          </div>
+          <div class="heatmap-legend">
+            <span>Menos</span>
+            <div class="hm-leg-cell" style="background:var(--surface2)"></div>
+            <div class="hm-leg-cell" style="background:rgba(232,255,71,.25)"></div>
+            <div class="hm-leg-cell" style="background:rgba(232,255,71,.6)"></div>
+            <div class="hm-leg-cell" style="background:var(--accent)"></div>
+            <span>Mais</span>
+          </div>
+        </div>
+        <!-- Monthly km blocks -->
+        <div class="section-header" style="margin-top:8px">
+          <span class="section-title">Por semana</span>
+        </div>
+        <div id="weekly-bars" style="padding:0 20px 24px"></div>
+      </div>
+    </div>
+
+    <!-- MAPA -->
+    <div class="page" id="page-map">
+      <div id="map-empty" class="empty-state">
+        <div class="empty-icon">🗺️</div>
+        <div class="empty-title">Sem mapas</div>
+        <div class="empty-desc">Importa ficheiros GPX para visualizar as tuas rotas.</div>
+      </div>
+      <div id="map-data" style="display:none">
+        <div style="padding:16px 20px 12px">
+          <div style="font-family:var(--font-display);font-size:24px;font-weight:800">Mapa</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px" id="map-subtitle"></div>
+        </div>
+        <div style="padding:0 20px 12px">
+          <div style="display:flex;gap:8px;margin-bottom:10px">
+            <button onclick="mapSelectAll(true)" style="flex:1;padding:7px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:11px;cursor:pointer">✓ Todas</button>
+            <button onclick="mapSelectAll(false)" style="flex:1;padding:7px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:8px;font-size:11px;cursor:pointer">✕ Nenhuma</button>
+          </div>
+          <div id="map-run-checklist" style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:4px"></div>
+        </div>
+        <div id="map-container">
+          <div id="leaflet-map"></div>
+        </div>
+        <div style="padding:0 20px 20px">
+          <div id="map-run-stats" style="display:none" class="chart-wrap" >
+            <div class="chart-header" style="padding-bottom:14px">
+              <div class="chart-title" id="map-run-name">—</div>
+              <div style="display:flex;gap:20px;margin-top:12px">
+                <div><div class="stat-label">Distância</div><div style="font-family:var(--font-display);font-size:18px;font-weight:800;color:var(--accent)" id="map-run-dist">—</div></div>
+                <div><div class="stat-label">Tempo</div><div style="font-family:var(--font-display);font-size:18px;font-weight:800;color:var(--text)" id="map-run-time">—</div></div>
+                <div><div class="stat-label">Ritmo</div><div style="font-family:var(--font-display);font-size:18px;font-weight:800;color:var(--accent2)" id="map-run-pace">—</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <nav>
+    <button class="nav-btn active" onclick="showPage('dashboard',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Início
+    </button>
+    <button class="nav-btn" onclick="showPage('runs',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      Corridas
+    </button>
+    <button class="nav-btn" onclick="showPage('heatmap',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Calendário
+    </button>
+    <button class="nav-btn" onclick="showPage('analysis',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Análise
+    </button>
+    <button class="nav-btn" onclick="showPage('map',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+      Mapa
+    </button>
+  </nav>
+</div>
+
+<!-- WEEKLY GOAL MODAL -->
+<div class="modal-overlay" id="goal-modal" onclick="closeGoalModal(event)" style="display:none;opacity:0">
+  <div class="modal" style="padding:24px 20px 32px">
+    <div class="modal-handle"></div>
+    <div style="font-family:var(--font-display);font-size:18px;font-weight:800;margin-bottom:16px">Meta semanal de km</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px" id="goal-presets">
+      <button class="filter-chip" onclick="setGoalPreset(20,this)">20 km</button>
+      <button class="filter-chip" onclick="setGoalPreset(30,this)">30 km</button>
+      <button class="filter-chip" onclick="setGoalPreset(40,this)">40 km</button>
+      <button class="filter-chip" onclick="setGoalPreset(50,this)">50 km</button>
+      <button class="filter-chip" onclick="setGoalPreset(0,this)">Sem meta</button>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input id="goal-input" type="number" min="1" max="300" placeholder="km/semana"
+        style="flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:8px;font-size:16px;font-family:var(--font-mono)">
+      <button onclick="saveGoal()" style="background:var(--accent);color:#0a0a0f;border:none;padding:10px 20px;border-radius:8px;font-family:var(--font-display);font-weight:700;font-size:14px;cursor:pointer">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="run-modal" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modal-title">—</div>
+    <div class="modal-date" id="modal-date">—</div>
+    <div class="modal-stats">
+      <div class="modal-stat"><div class="modal-stat-val" id="modal-dist">—</div><div class="modal-stat-lbl">km</div></div>
+      <div class="modal-stat"><div class="modal-stat-val" id="modal-time">—</div><div class="modal-stat-lbl">tempo</div></div>
+      <div class="modal-stat"><div class="modal-stat-val" id="modal-pace">—</div><div class="modal-stat-lbl">min/km</div></div>
+    </div>
+    <div class="modal-stats" style="grid-template-columns:1fr 1fr 1fr">
+      <div class="modal-stat"><div class="modal-stat-val" id="modal-elev">—</div><div class="modal-stat-lbl">elev. (m)</div></div>
+      <div class="modal-stat"><div class="modal-stat-val" id="modal-calories">—</div><div class="modal-stat-lbl">calorias</div></div>
+      <div class="modal-stat"><div class="modal-stat-val" id="modal-bestsplit">—</div><div class="modal-stat-lbl">melhor km</div></div>
+    </div>
+    <div id="modal-splits-section" style="display:none;margin-bottom:16px">
+      <div style="font-family:var(--font-display);font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Splits por km</div>
+      <div id="modal-splits"></div>
+    </div>
+    <div id="modal-pace-chart-section" style="display:none;margin-bottom:16px">
+      <div style="font-family:var(--font-display);font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Ritmo ao longo da corrida</div>
+      <canvas id="modal-pace-canvas" style="width:100%;height:100px;display:block"></canvas>
+    </div>
+    <button class="btn-delete" onclick="deleteCurrentRun()">🗑️ Eliminar corrida</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════
+//  STATE & STORAGE
+// ══════════════════════════════════════════
+let runs = [];
+let gpxRoutes = {}; // activityId -> [[lat,lng],...]
+let gpxSplits = {}; // activityId -> [secsPerKm, ...]
+let gpxPoints = {}; // activityId -> [{dist, t},...] dense points for sub-split precision
+let currentRunId = null;
+let leafletMap = null;
+let mapLayers = [];
+let paceChartInst = null, monthlyChartInst = null, scatterChartInst = null;
+
+// Filter state
+let fPeriod = 'all';
+let fMinDist = 0;
+let fMaxPace = 999; // secs/km
+let fMaxSplit = 999; // secs/km
+let fSort = 'date';
+let fSortDir = 'desc'; // 'asc' | 'desc'
+let filtersOpen = false;
+
+// ══════════════════════════════════════════
+//  SUPABASE
+// ══════════════════════════════════════════
+const SUPA_URL = 'https://urtvucvjkfffwhkdfclp.supabase.co';
+const SUPA_KEY = 'sb_publishable_x0COUdZugcp_Ft70WYu4iQ__7NirBOA';
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
+let currentUser = null;
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pw = document.getElementById('login-password').value;
+  setLoginLoading(true);
+  const { error } = await supa.auth.signInWithPassword({ email, password: pw });
+  if (error) { showLoginError(error.message); setLoginLoading(false); }
+}
+async function doSignup() {
+  const email = document.getElementById('login-email').value.trim();
+  const pw = document.getElementById('login-password').value;
+  if (pw.length < 6) { showLoginError('Password deve ter pelo menos 6 caracteres'); return; }
+  setLoginLoading(true);
+  const { error } = await supa.auth.signUp({ email, password: pw });
+  if (error) { showLoginError(error.message); setLoginLoading(false); }
+  else { showLoginError('✓ Verifica o teu email para confirmar a conta.'); setLoginLoading(false); }
+}
+async function doLogout() {
+  await supa.auth.signOut();
+  runs = []; gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
+  currentUser = null;
+  showLoginScreen();
+}
+function showLoginError(msg) {
+  const el = document.getElementById('login-error');
+  el.textContent = msg; el.style.display = '';
+}
+function setLoginLoading(on) {
+  document.getElementById('login-loading').style.display = on ? '' : 'none';
+  document.getElementById('btn-login').disabled = on;
+  document.getElementById('btn-signup').disabled = on;
+}
+function showLoginScreen() {
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+}
+function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+}
+
+// Enter key on password field triggers login
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('login-password')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+});
+
+// Auth state — drives the whole app lifecycle
+supa.auth.onAuthStateChange(async (event, session) => {
+  if (session?.user) {
+    currentUser = session.user;
+    showApp();
+    await load();
+    renderAll();
+  } else {
+    currentUser = null;
+    runs = []; gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
+    showLoginScreen();
+  }
+});
+
+// ══════════════════════════════════════════
+//  INDEXEDDB (cache local)
+// ══════════════════════════════════════════
+const DB_NAME = 'pace_db', DB_VERSION = 1;
+let db = null;
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    if (db) return resolve(db);
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('kv')) d.createObjectStore('kv');
+    };
+    req.onsuccess = e => { db = e.target.result; resolve(db); };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function dbSet(key, value) {
+  return openDB().then(d => new Promise((resolve, reject) => {
+    const tx = d.transaction('kv', 'readwrite');
+    tx.objectStore('kv').put(value, key);
+    tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+  }));
+}
+
+function dbGet(key) {
+  return openDB().then(d => new Promise((resolve, reject) => {
+    const tx = d.transaction('kv', 'readonly');
+    const req = tx.objectStore('kv').get(key);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  }));
+}
+
+async function save() {
+  // Save to IndexedDB cache (fast, offline)
+  try {
+    await Promise.all([
+      dbSet('runs', runs), dbSet('gpxRoutes', gpxRoutes),
+      dbSet('gpxSplits', gpxSplits), dbSet('gpxPoints', gpxPoints),
+    ]);
+  } catch(e) { console.warn('IndexedDB save error:', e); }
+
+  // Sync to Supabase (source of truth)
+  if (!currentUser) return;
+  try {
+    const runsRows = runs.map(r => ({ id: r.id, user_id: currentUser.id, data: r }));
+    if (runsRows.length) await supa.from('runs').upsert(runsRows, { onConflict: 'id,user_id' });
+    const gpxIds = new Set([...Object.keys(gpxRoutes), ...Object.keys(gpxSplits), ...Object.keys(gpxPoints)]);
+    const gpxRows = [...gpxIds].map(id => ({
+      id, user_id: currentUser.id,
+      routes: gpxRoutes[id] || null,
+      splits: gpxSplits[id] || null,
+      points: gpxPoints[id] || null,
+    }));
+    if (gpxRows.length) await supa.from('gpx_data').upsert(gpxRows, { onConflict: 'id,user_id' });
+  } catch(e) { console.warn('Supabase save error:', e); }
+}
+
+// ══════════════════════════════════════════
+//  RACE OVERRIDES
+//  Correcções manuais para provas oficiais.
+//  Aplicadas após load() e após cada import.
+//  Para adicionar: { date: 'YYYY-MM-DD', name: '...', dist: X.X }
+// ══════════════════════════════════════════
+const RACE_OVERRIDES = [
+  {
+    date: '2026-01-10',          // Corrida dos Reis PVZ 2026
+    name: 'Corrida dos Reis PVZ 2026',
+  },
+  {
+    date: '2026-03-15',          // Corrida do Pai 2026
+    name: 'Corrida do Pai 2026',
+    dist: 10.0,                  // oficial (Strava: 9.99km)
+    secs: 2920,                  // oficial 48:40
+    completeSplits: true,        // extrapolar último split parcial até à distância oficial
+  },
+];
+
+function applyRaceOverrides() {
+  for (const ov of RACE_OVERRIDES) {
+    const run = runs.find(r => r.date.startsWith(ov.date));
+    if (!run) continue;
+    if (ov.name) run.name = ov.name;
+    if (ov.dist) run.dist = ov.dist;
+    if (ov.secs) run.secs = ov.secs;
+
+    // Extrapolate final partial split to complete the distance
+    // e.g. 9.99km run with 9 splits → add 10th split by scaling the partial km time
+    if (ov.completeSplits && ov.dist) {
+      const splits = gpxSplits[run.id];
+      const pts = gpxPoints[run.id];
+      if (splits) {
+        const targetKm = Math.ceil(ov.dist); // e.g. 10
+        if (splits.length < targetKm) {
+          // Actual distance covered in the partial last km
+          const fullKmsCovered = splits.length; // e.g. 9 full km splits
+          const partialDist = (pts ? pts[pts.length-1].dist : run.dist) - fullKmsCovered;
+          // Time taken for that partial distance (use last split's pace as estimate)
+          // Better: use gpxPoints to get actual time for the partial km
+          let partialSecs = null;
+          if (pts && pts.length > 1) {
+            // Find time from km9 to end of GPS data
+            const km9 = fullKmsCovered;
+            // Find point at km9 by interpolation
+            let j = 0;
+            while (j < pts.length - 1 && pts[j+1].dist < km9) j++;
+            if (pts[j].dist <= km9 && j < pts.length - 1) {
+              const frac = (km9 - pts[j].dist) / Math.max(pts[j+1].dist - pts[j].dist, 0.0001);
+              const tKm9 = pts[j].t + frac * (pts[j+1].t - pts[j].t);
+              const tEnd = pts[pts.length-1].t;
+              const secsForPartial = (tEnd - tKm9) / 1000;
+              // Scale up to full km: e.g. if 0.99km took 290s → 1km = 290/0.99 = 293s
+              if (partialDist > 0.05) {
+                partialSecs = Math.round(secsForPartial / partialDist);
+              }
+            }
+          }
+          // Fallback: use pace of last available split
+          if (!partialSecs) partialSecs = splits[splits.length - 1];
+          gpxSplits[run.id] = [...splits, partialSecs];
+          // Adjust last split so sum matches official total time exactly
+          if (ov.secs) {
+            const sumFirst9 = splits.reduce((a,b) => a+b, 0);
+            const adjustedLast = ov.secs - sumFirst9;
+            if (adjustedLast > 60 && adjustedLast < 600) {
+              gpxSplits[run.id][gpxSplits[run.id].length - 1] = adjustedLast;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+async function load() {
+  // Load from IndexedDB cache first (instant)
+  try {
+    await openDB();
+    const [r, rt, sp, pt] = await Promise.all([
+      dbGet('runs'), dbGet('gpxRoutes'), dbGet('gpxSplits'), dbGet('gpxPoints')
+    ]);
+    if (r)  runs = r;
+    if (rt) gpxRoutes = rt;
+    if (sp) gpxSplits = sp;
+    if (pt) gpxPoints = pt;
+    applyRaceOverrides();
+  } catch(e) { runs = []; gpxRoutes = {}; gpxSplits = {}; gpxPoints = {}; }
+
+  // Then fetch from Supabase (source of truth)
+  if (!currentUser) return;
+  try {
+    const [{ data: runsData }, { data: gpxData }] = await Promise.all([
+      supa.from('runs').select('data').eq('user_id', currentUser.id),
+      supa.from('gpx_data').select('id,routes,splits,points').eq('user_id', currentUser.id),
+    ]);
+    if (runsData) {
+      runs = runsData.map(r => r.data);
+      gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
+      (gpxData || []).forEach(g => {
+        if (g.routes) gpxRoutes[g.id] = g.routes;
+        if (g.splits) gpxSplits[g.id] = g.splits;
+        if (g.points) gpxPoints[g.id] = g.points;
+      });
+      applyRaceOverrides();
+      Promise.all([
+        dbSet('runs', runs), dbSet('gpxRoutes', gpxRoutes),
+        dbSet('gpxSplits', gpxSplits), dbSet('gpxPoints', gpxPoints),
+      ]).catch(() => {});
+    }
+  } catch(e) { console.warn('Supabase load error:', e); }
+}
+
+// ══════════════════════════════════════════
+//  NAVIGATION
+// ══════════════════════════════════════════
+function showPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  if (btn) btn.classList.add('active');
+  if (id === 'map') initMap();
+  if (id === 'analysis') renderAnalysis();
+  if (id === 'heatmap') renderHeatmapPage();
+}
+
+// ══════════════════════════════════════════
+//  FILE IMPORT
+// ══════════════════════════════════════════
+function handleFileUpload(e) {
+  const files = Array.from(e.target.files);
+  let imported = 0;
+  let pending = files.length;
+
+  files.forEach(file => {
+    const name = file.name.toLowerCase();
+    if (name.endsWith('.csv')) {
+      Papa.parse(file, {
+        header: true,
+        complete: (results) => {
+          const added = parseStravaCSV(results.data);
+          imported += added;
+          pending--;
+          if (pending === 0) finishImport(imported);
+        }
+      });
+    } else if (name.endsWith('.gpx')) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        parseGPX(ev.target.result, file.name);
+        imported++;
+        pending--;
+        if (pending === 0) finishImport(imported);
+      };
+      reader.readAsText(file);
+    } else {
+      pending--;
+      if (pending === 0) finishImport(imported);
+    }
+  });
+  e.target.value = '';
+}
+
+function parseStravaCSV(data) {
+  let count = 0;
+  data.forEach(row => {
+    const type = (row['Activity Type'] || row['Tipo de Atividade'] || '').toLowerCase();
+    if (!type.includes('run') && !type.includes('corrida') && !type.includes('trail')) return;
+
+    const distRaw = parseFloat(row['Distance'] || row['Distância'] || 0);
+    // Strava may export in km or meters
+    const dist = distRaw > 500 ? distRaw / 1000 : distRaw;
+    if (dist < 0.1) return;
+
+    const dateStr = row['Activity Date'] || row['Data da Atividade'] || row['Date'] || '';
+    const date = parseDate(dateStr);
+    if (!date) return;
+
+    const timeStr = row['Moving Time'] || row['Tempo em Movimento'] || row['Elapsed Time'] || '0';
+    const secs = parseTime(timeStr);
+
+    const elevStr = row['Elevation Gain'] || row['Ganho de Elevação'] || '0';
+    const elev = parseFloat(elevStr) || 0;
+
+    const cals = parseFloat(row['Calories'] || row['Calorias'] || 0);
+    const actId = row['Activity ID'] || row['ID da Atividade'] || String(date.getTime());
+    const actName = row['Activity Name'] || row['Nome da Atividade'] || 'Corrida';
+
+    // deduplicate
+    if (runs.find(r => r.id === actId)) return;
+
+    runs.push({
+      id: actId,
+      name: actName,
+      date: date.toISOString(),
+      dist: Math.round(dist * 100) / 100,
+      secs,
+      elev: Math.round(elev),
+      cals: Math.round(cals),
+      type: (row['Activity Type'] || 'Run')
+    });
+    count++;
+  });
+  return count;
+}
+
+function parseGPX(text, filename) {
+  const parser = new DOMParser();
+  const xml = parser.parseFromString(text, 'text/xml');
+  const trkpts = xml.querySelectorAll('trkpt');
+  if (!trkpts.length) return;
+
+  const coords = [];
+  const points = []; // {lat,lon,time,elev}
+  let elevGain = 0, prevElev = null;
+
+  trkpts.forEach(pt => {
+    const lat = parseFloat(pt.getAttribute('lat'));
+    const lon = parseFloat(pt.getAttribute('lon'));
+    const timeEl = pt.querySelector('time');
+    const elevEl = pt.querySelector('ele');
+    if (isNaN(lat) || isNaN(lon)) return;
+    coords.push([lat, lon]);
+    const t = timeEl ? new Date(timeEl.textContent) : null;
+    const e = elevEl ? parseFloat(elevEl.textContent) : null;
+    points.push({lat, lon, time: t, elev: e});
+    if (e !== null && prevElev !== null && e > prevElev) elevGain += e - prevElev;
+    if (e !== null) prevElev = e;
+  });
+
+  // Compute cumulative distance per point
+  let totalDist = 0;
+  const cumDist = [0];
+  for (let i = 1; i < points.length; i++) {
+    totalDist += haversine(points[i-1].lat, points[i-1].lon, points[i].lat, points[i].lon);
+    cumDist.push(totalDist);
+  }
+
+  const minTime = points.find(p => p.time)?.time;
+  const maxTime = [...points].reverse().find(p => p.time)?.time;
+  const secs = (minTime && maxTime) ? Math.round((maxTime - minTime) / 1000) : 0;
+  const date = minTime || new Date();
+  const id = 'gpx_' + date.getTime();
+  const name = filename.replace('.gpx', '').replace(/_/g, ' ');
+
+  // Compute km splits
+  const splits = [];
+  if (points.some(p => p.time)) {
+    let kmIndex = 1;
+    while (kmIndex <= Math.floor(totalDist)) {
+      // Find points bracketing this km mark
+      let i = cumDist.findIndex(d => d >= kmIndex);
+      if (i < 1) { kmIndex++; continue; }
+      const p0 = points[i-1], p1 = points[i];
+      if (!p0.time || !p1.time) { kmIndex++; continue; }
+      const d0 = cumDist[i-1], d1 = cumDist[i];
+      // Previous km mark
+      const prevKm = kmIndex - 1;
+      let j = i - 1;
+      while (j > 0 && cumDist[j] > prevKm) j--;
+      const q0 = points[j], q1 = points[j+1];
+      if (!q0.time || !q1.time) { kmIndex++; continue; }
+      // Interpolate times at exact km boundaries
+      const fracStart = (prevKm - cumDist[j]) / Math.max(cumDist[j+1] - cumDist[j], 0.0001);
+      const fracEnd   = (kmIndex   - cumDist[i-1]) / Math.max(cumDist[i] - cumDist[i-1], 0.0001);
+      const tStart = q0.time.getTime() + fracStart * (q1.time.getTime() - q0.time.getTime());
+      const tEnd   = p0.time.getTime() + fracEnd   * (p1.time.getTime() - p0.time.getTime());
+      const splitSecs = Math.round((tEnd - tStart) / 1000);
+      if (splitSecs > 60 && splitSecs < 1800) splits.push(splitSecs);
+      kmIndex++;
+    }
+  }
+
+  const bestSplit = splits.length ? Math.min(...splits) : null;
+
+  // Store timed points for B1 detection and sub-split precision.
+  // Subsampled to every 3rd point (~15-20m apart) to fit all runs in localStorage.
+  // Each entry: {dist: km from start, t: timestamp ms}
+  const timedPoints = points
+    .map((p, i) => p.time ? {dist: cumDist[i], t: p.time.getTime()} : null)
+    .filter(Boolean)
+    .filter((_, i) => i % 3 === 0);
+
+  if (totalDist > 0.1) {
+    if (!runs.find(r => r.id === id)) {
+      runs.push({
+        id, name, date: date.toISOString(),
+        dist: Math.round(totalDist*100)/100,
+        secs, elev: Math.round(elevGain), cals: 0, type: 'Run',
+        bestSplit
+      });
+    }
+    gpxRoutes[id] = coords;
+    if (splits.length) gpxSplits[id] = splits;
+    if (timedPoints.length > 1) gpxPoints[id] = timedPoints;
+  }
+}
+
+async function finishImport(count) {
+  runs.sort((a,b) => new Date(a.date) - new Date(b.date));
+  runs.forEach((r, i) => { r.name = `${i+1}ª corrida`; });
+  runs.sort((a,b) => new Date(b.date) - new Date(a.date));
+  applyRaceOverrides(); // apply after numbering so names override the "Nª corrida" default
+  await save();
+  renderAll();
+  showToast(`✓ ${count} corrida${count!==1?'s':''} importada${count!==1?'s':''}`);
+}
+
+// ══════════════════════════════════════════
+//  PARSERS
+// ══════════════════════════════════════════
+function parseDate(str) {
+  if (!str) return null;
+  // "Jan 1, 2024, 8:00:00 AM" or "2024-01-01 08:00:00" etc
+  const d = new Date(str);
+  return isNaN(d) ? null : d;
+}
+
+function parseTime(str) {
+  if (!str) return 0;
+  str = String(str).trim();
+  // HH:MM:SS or MM:SS or seconds integer
+  const parts = str.split(':').map(Number);
+  if (parts.length === 3) return parts[0]*3600 + parts[1]*60 + parts[2];
+  if (parts.length === 2) return parts[0]*60 + parts[1];
+  return parseFloat(str) || 0;
+}
+
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371, dLat = (lat2-lat1)*Math.PI/180, dLon = (lon2-lon1)*Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// ══════════════════════════════════════════
+//  FORMAT HELPERS
+// ══════════════════════════════════════════
+function fmtPace(secs, km) {
+  if (!km || !secs) return '—';
+  let total = Math.round(secs / km); // total seconds per km, rounded
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+function fmtTime(secs) {
+  if (!secs) return '—';
+  const h = Math.floor(secs/3600), m = Math.floor((secs%3600)/60), s = secs%60;
+  if (h > 0) return `${h}h${String(m).padStart(2,'0')}m`;
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+function fmtDate(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('pt-PT', {day:'2-digit', month:'short', year:'numeric'});
+}
+
+// ══════════════════════════════════════════
+//  RENDER ALL
+// ══════════════════════════════════════════
+function renderAll() {
+  renderDashboard();
+  applyFiltersAndRender();
+}
+
+// ══════════════════════════════════════════
+//  DASHBOARD
+// ══════════════════════════════════════════
+function renderDashboard() {
+  if (!runs.length) {
+    document.getElementById('dashboard-empty').style.display = '';
+    document.getElementById('dashboard-data').style.display = 'none';
+    return;
+  }
+  document.getElementById('dashboard-empty').style.display = 'none';
+  document.getElementById('dashboard-data').style.display = '';
+
+  const totalKm = runs.reduce((s,r) => s + r.dist, 0);
+  const totalSecs = runs.reduce((s,r) => s + r.secs, 0);
+  const totalElev = runs.reduce((s,r) => s + r.elev, 0);
+  const avgPaceTotal = Math.round(totalSecs / totalKm);
+  const avgPaceMin = Math.floor(avgPaceTotal / 60), avgPaceSec = avgPaceTotal % 60;
+
+  document.getElementById('stat-total-km').innerHTML = `${Math.round(totalKm)}<span class="stat-unit">km</span>`;
+  document.getElementById('stat-runs-count').textContent = `${runs.length} corridas`;
+  document.getElementById('stat-total-time').textContent = fmtTime(totalSecs);
+  document.getElementById('stat-avg-time').textContent = `média ${fmtTime(Math.round(totalSecs/runs.length))}`;
+  document.getElementById('stat-avg-pace').textContent = `${avgPaceMin}:${String(avgPaceSec).padStart(2,'0')}`;
+  document.getElementById('stat-total-elev').innerHTML = `${Math.round(totalElev)}<span class="stat-unit">m</span>`;
+  document.getElementById('stat-avg-elev').textContent = `média ${Math.round(totalElev/runs.length)}m`;
+
+  // Streak
+  const streak = calcStreak();
+  document.getElementById('streak-num').textContent = streak.current;
+  document.getElementById('streak-best').textContent = `${streak.best} semanas`;
+
+  renderWeeklyGoal();
+  renderMonthCompare();
+  renderPatterns();
+  renderFormTrend();
+  renderBadges();
+
+  // Monthly chart
+  renderMonthlyChart();
+}
+
+// ══════════════════════════════════════════
+//  WEEKLY GOAL
+// ══════════════════════════════════════════
+let weeklyGoalKm = parseInt(localStorage.getItem('pace_weekly_goal') || '0');
+
+function renderWeeklyGoal() {
+  const now = new Date();
+  const dow = (now.getDay() + 6) % 7;
+  const monday = new Date(now); monday.setDate(now.getDate() - dow); monday.setHours(0,0,0,0);
+  const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6); sunday.setHours(23,59,59,999);
+  const weekKm = runs.filter(r => { const d = new Date(r.date); return d >= monday && d <= sunday; })
+                     .reduce((s,r) => s + r.dist, 0);
+
+  const goal = weeklyGoalKm;
+  const bar = document.getElementById('weekly-goal-bar');
+  const label = document.getElementById('weekly-goal-label');
+  const pct = document.getElementById('weekly-goal-pct');
+  const sub = document.getElementById('weekly-goal-sub');
+
+  label.textContent = `${weekKm.toFixed(1)} km esta semana`;
+
+  if (!goal) {
+    bar.style.width = '0%';
+    pct.textContent = 'sem meta definida';
+    pct.style.color = 'var(--muted)';
+    sub.textContent = 'Clica em "editar" para definir uma meta';
+    return;
+  }
+  const p = Math.min(weekKm / goal * 100, 100);
+  bar.style.width = p.toFixed(1) + '%';
+  const remaining = Math.max(goal - weekKm, 0);
+  if (weekKm >= goal) {
+    pct.textContent = '✓ Meta atingida!';
+    pct.style.color = 'var(--success)';
+    sub.textContent = `${weekKm.toFixed(1)} / ${goal} km — parabéns!`;
+  } else {
+    pct.textContent = `${p.toFixed(0)}%`;
+    pct.style.color = 'var(--accent)';
+    sub.textContent = `Faltam ${remaining.toFixed(1)} km para atingir ${goal} km`;
+  }
+}
+
+function editWeeklyGoal() {
+  const modal = document.getElementById('goal-modal');
+  document.getElementById('goal-input').value = weeklyGoalKm || '';
+  // Highlight matching preset
+  document.querySelectorAll('#goal-presets .filter-chip').forEach(b => {
+    b.classList.toggle('active', parseInt(b.textContent) === weeklyGoalKm);
+  });
+  modal.style.display = 'flex';
+  requestAnimationFrame(() => { modal.style.opacity = '1'; modal.style.transition = 'opacity .2s'; });
+}
+function closeGoalModal(e) {
+  if (e && e.target !== document.getElementById('goal-modal')) return;
+  const modal = document.getElementById('goal-modal');
+  modal.style.opacity = '0';
+  setTimeout(() => { modal.style.display = 'none'; }, 200);
+}
+function setGoalPreset(val, btn) {
+  document.querySelectorAll('#goal-presets .filter-chip').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('goal-input').value = val || '';
+}
+function saveGoal() {
+  const val = parseInt(document.getElementById('goal-input').value) || 0;
+  weeklyGoalKm = val;
+  localStorage.setItem('pace_weekly_goal', val);
+  closeGoalModal(null);
+  renderWeeklyGoal();
+}
+
+// ══════════════════════════════════════════
+//  MONTH COMPARE
+// ══════════════════════════════════════════
+function renderMonthCompare() {
+  const now = new Date();
+  const currKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const prevKey = `${prevDate.getFullYear()}-${String(prevDate.getMonth()+1).padStart(2,'0')}`;
+
+  const byMonth = {};
+  runs.forEach(r => {
+    const d = new Date(r.date);
+    const k = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    if (!byMonth[k]) byMonth[k] = { km: 0, count: 0 };
+    byMonth[k].km += r.dist; byMonth[k].count++;
+  });
+
+  const curr = byMonth[currKey] || { km: 0, count: 0 };
+  const prev = byMonth[prevKey] || { km: 0, count: 0 };
+
+  const currName = now.toLocaleDateString('pt-PT', { month: 'long' });
+  const prevName = prevDate.toLocaleDateString('pt-PT', { month: 'long' });
+
+  document.getElementById('month-curr-label').textContent = currName;
+  document.getElementById('month-curr-km').textContent = Math.round(curr.km) + ' km';
+  document.getElementById('month-curr-runs').textContent = `${curr.count} corrida${curr.count !== 1 ? 's' : ''}`;
+  document.getElementById('month-prev-label').textContent = prevName;
+  document.getElementById('month-prev-km').textContent = Math.round(prev.km) + ' km';
+  document.getElementById('month-prev-runs').textContent = `${prev.count} corrida${prev.count !== 1 ? 's' : ''}`;
+
+  const icon = document.getElementById('month-delta-icon');
+  const pctEl = document.getElementById('month-delta-pct');
+  if (prev.km > 0) {
+    const delta = ((curr.km - prev.km) / prev.km * 100);
+    const isUp = delta >= 0;
+    icon.textContent = isUp ? '↑' : '↓';
+    icon.style.color = isUp ? 'var(--success)' : 'var(--accent2)';
+    pctEl.textContent = (isUp ? '+' : '') + delta.toFixed(0) + '%';
+    pctEl.style.color = isUp ? 'var(--success)' : 'var(--accent2)';
+  } else {
+    icon.textContent = '→'; icon.style.color = 'var(--muted)';
+    pctEl.textContent = '—'; pctEl.style.color = 'var(--muted)';
+  }
+}
+
+// ══════════════════════════════════════════
+//  PATTERNS (best day + milestone + day bars)
+// ══════════════════════════════════════════
+function renderPatterns() {
+  const DAY_NAMES = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  const dayStats = Array.from({length:7}, () => ({ totalSecs: 0, totalKm: 0, count: 0 }));
+  runs.forEach(r => {
+    if (!r.secs || !r.dist) return;
+    const dow = new Date(r.date).getDay();
+    dayStats[dow].totalKm += r.dist;
+    dayStats[dow].totalSecs += r.secs;
+    dayStats[dow].count++;
+  });
+
+  // Best day = fastest avg pace (min pace/km) with at least 2 runs
+  let bestDow = -1, bestPace = Infinity;
+  dayStats.forEach((s, i) => {
+    if (s.count < 2) return;
+    const pace = s.totalSecs / s.totalKm;
+    if (pace < bestPace) { bestPace = pace; bestDow = i; }
+  });
+
+  if (bestDow >= 0) {
+    document.getElementById('best-day-name').textContent = DAY_NAMES[bestDow];
+    document.getElementById('best-day-pace').textContent = fmtPace(dayStats[bestDow].totalSecs, dayStats[bestDow].totalKm) + '/km médio';
+  } else {
+    document.getElementById('best-day-name').textContent = '—';
+    document.getElementById('best-day-pace').textContent = 'dados insuficientes';
+  }
+
+  // Milestone
+  const totalKm = runs.reduce((s,r) => s + r.dist, 0);
+  const milestones = [100,250,500,750,1000,1500,2000,3000,5000];
+  const next = milestones.find(m => m > totalKm);
+  if (next) {
+    document.getElementById('next-milestone-val').textContent = `${(next - totalKm).toFixed(0)} km`;
+    document.getElementById('next-milestone-label').textContent = `para os ${next} km totais`;
+  } else {
+    document.getElementById('next-milestone-val').textContent = '🏆';
+    document.getElementById('next-milestone-label').textContent = 'Todos os milestones atingidos!';
+  }
+
+  // Day-of-week bar chart (Mon to Sun, i=1..0)
+  const order = [1,2,3,4,5,6,0]; // Mon first
+  const paces = order.map(i => dayStats[i].count >= 1 ? dayStats[i].totalSecs / dayStats[i].totalKm : null);
+  const validPaces = paces.filter(Boolean);
+  const minP = Math.min(...validPaces, 200), maxP = Math.max(...validPaces, 400);
+
+  const barsEl = document.getElementById('day-of-week-bars');
+  const labelsEl = document.getElementById('day-of-week-labels');
+  barsEl.innerHTML = order.map((dow, i) => {
+    const s = dayStats[dow];
+    if (!s.count) return `<div style="flex:1;display:flex;align-items:flex-end"><div style="width:100%;height:4px;background:var(--surface);border-radius:2px"></div></div>`;
+    const pace = s.totalSecs / s.totalKm;
+    // Invert: faster = taller bar. Normalize so fastest = 100%, slowest = 30%
+    const range = maxP - minP || 1;
+    const h = 30 + (1 - (pace - minP) / range) * 70;
+    const isToday = dow === new Date().getDay();
+    const color = isToday ? 'var(--accent)' : dow === bestDow ? 'var(--success)' : 'rgba(232,255,71,.45)';
+    return `<div style="flex:1;display:flex;align-items:flex-end" title="${DAY_NAMES[dow]}: ${fmtPace(s.totalSecs,s.totalKm)}/km (${s.count} corridas)">
+      <div style="width:100%;height:${h.toFixed(0)}%;background:${color};border-radius:3px 3px 0 0;min-height:4px"></div>
+    </div>`;
+  }).join('');
+  labelsEl.innerHTML = order.map(dow => {
+    const isToday = dow === new Date().getDay();
+    return `<div style="flex:1;text-align:center;font-size:8px;color:${isToday ? 'var(--accent)' : 'var(--muted)'}">${DAY_NAMES[dow].slice(0,1)}</div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════
+//  FORM TREND (8-week rolling avg pace)
+// ══════════════════════════════════════════
+function renderFormTrend() {
+  // Build weekly avg pace for last 12 weeks
+  const now = new Date();
+  const weeks = [];
+  for (let w = 11; w >= 0; w--) {
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - ((now.getDay()+6)%7) - w*7);
+    monday.setHours(0,0,0,0);
+    const sunday = new Date(monday); sunday.setDate(monday.getDate()+6); sunday.setHours(23,59,59,999);
+    const weekRuns = runs.filter(r => { const d=new Date(r.date); return d>=monday&&d<=sunday&&r.secs&&r.dist; });
+    if (weekRuns.length) {
+      const totSecs = weekRuns.reduce((s,r)=>s+r.secs,0);
+      const totKm = weekRuns.reduce((s,r)=>s+r.dist,0);
+      weeks.push({ label: monday.toLocaleDateString('pt-PT',{day:'2-digit',month:'2-digit'}), pace: totSecs/totKm/60, hasData: true });
+    } else {
+      weeks.push({ label: monday.toLocaleDateString('pt-PT',{day:'2-digit',month:'2-digit'}), pace: null, hasData: false });
+    }
+  }
+
+  const canvas = document.getElementById('form-trend-chart');
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.parentElement.offsetWidth || 300;
+  const H = 80;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  const ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr);
+
+  const validPaces = weeks.filter(w=>w.hasData).map(w=>w.pace);
+  if (validPaces.length < 2) return;
+  const minP = Math.min(...validPaces), maxP = Math.max(...validPaces);
+  const range = maxP - minP || 0.5;
+  const pad = { l:4, r:4, t:8, b:20 };
+  const stepX = (W - pad.l - pad.r) / (weeks.length - 1);
+  const sy = p => pad.t + (1 - (p - minP + range*0.1) / (range*1.2)) * (H - pad.t - pad.b);
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,.06)'; ctx.lineWidth = 1;
+  [0.25,0.5,0.75].forEach(f => {
+    const y = pad.t + f*(H-pad.t-pad.b);
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(W-pad.r,y); ctx.stroke();
+  });
+
+  // Fill area
+  const points = weeks.map((w,i) => ({ x: pad.l + i*stepX, y: w.hasData ? sy(w.pace) : null }));
+  ctx.beginPath();
+  let started = false;
+  points.forEach((pt,i) => {
+    if (!pt.y) return;
+    if (!started) { ctx.moveTo(pt.x, pt.y); started = true; }
+    else ctx.lineTo(pt.x, pt.y);
+  });
+  // close for fill
+  const lastValid = [...points].reverse().find(p=>p.y);
+  const firstValid = points.find(p=>p.y);
+  if (lastValid && firstValid) {
+    ctx.lineTo(lastValid.x, H-pad.b);
+    ctx.lineTo(firstValid.x, H-pad.b);
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(0, pad.t, 0, H-pad.b);
+    grad.addColorStop(0, 'rgba(232,255,71,.25)');
+    grad.addColorStop(1, 'rgba(232,255,71,.02)');
+    ctx.fillStyle = grad; ctx.fill();
+  }
+
+  // Line
+  ctx.beginPath(); started = false;
+  points.forEach(pt => {
+    if (!pt.y) { started = false; return; }
+    if (!started) { ctx.moveTo(pt.x, pt.y); started = true; }
+    else ctx.lineTo(pt.x, pt.y);
+  });
+  ctx.strokeStyle = 'var(--accent)'; ctx.lineWidth = 2; ctx.stroke();
+
+  // Dots + labels
+  points.forEach((pt, i) => {
+    if (!pt.y) return;
+    ctx.beginPath(); ctx.arc(pt.x, pt.y, 3, 0, Math.PI*2);
+    ctx.fillStyle = 'var(--accent)'; ctx.fill();
+    if (i === 0 || i === weeks.length-1 || weeks[i].hasData) {
+      const m = Math.floor(weeks[i].pace), s = Math.round((weeks[i].pace-m)*60);
+      ctx.fillStyle = 'rgba(107,107,128,.8)';
+      ctx.font = '8px DM Mono, monospace'; ctx.textAlign = 'center';
+      ctx.fillText(`${m}:${String(s).padStart(2,'0')}`, pt.x, H-4);
+    }
+  });
+
+  // Trend arrow annotation (first valid vs last valid)
+  if (validPaces.length >= 2) {
+    const first = validPaces[0], last = validPaces[validPaces.length-1];
+    const improving = last < first; // lower pace = faster
+    ctx.fillStyle = improving ? 'var(--success)' : 'var(--accent2)';
+    ctx.font = 'bold 9px DM Mono, monospace'; ctx.textAlign = 'left';
+    const diffSecs = Math.abs((last - first) * 60);
+    ctx.fillText(improving ? `▼ ${diffSecs.toFixed(0)}s/km` : `▲ ${diffSecs.toFixed(0)}s/km`, pad.l+2, pad.t+10);
+  }
+}
+
+// ══════════════════════════════════════════
+//  BADGES
+// ══════════════════════════════════════════
+function renderBadges() {
+  const totalKm = runs.reduce((s,r) => s+r.dist, 0);
+  const totalRuns = runs.length;
+  const streak = calcStreak();
+  const maxDist = runs.length ? Math.max(...runs.map(r=>r.dist)) : 0;
+
+  // Best 1km split + which run (seconds)
+  let best1km = Infinity, best1kmId = null;
+  Object.entries(gpxSplits).forEach(([id, splits]) => {
+    splits.forEach(s => { if (s < best1km) { best1km = s; best1kmId = id; } });
+  });
+
+  // Best 5km sliding window + which run
+  let best5km = Infinity, best5kmId = null;
+  Object.entries(gpxSplits).forEach(([id, splits]) => {
+    if (splits.length < 5) return;
+    let ws = splits.slice(0,5).reduce((a,b)=>a+b,0);
+    if (ws < best5km) { best5km = ws; best5kmId = id; }
+    for (let i = 5; i < splits.length; i++) {
+      ws += splits[i] - splits[i-5];
+      if (ws < best5km) { best5km = ws; best5kmId = id; }
+    }
+  });
+
+  // Best 10km sliding window + which run
+  let best10km = Infinity, best10kmId = null;
+  Object.entries(gpxSplits).forEach(([id, splits]) => {
+    if (splits.length < 10) return;
+    let ws = splits.slice(0,10).reduce((a,b)=>a+b,0);
+    if (ws < best10km) { best10km = ws; best10kmId = id; }
+    for (let i = 10; i < splits.length; i++) {
+      ws += splits[i] - splits[i-10];
+      if (ws < best10km) { best10km = ws; best10kmId = id; }
+    }
+  });
+
+  const all = [
+    // Volume
+    { cat:'📦 Volume', id:'first',    icon:'🏃', name:'Primeira corrida',    cond: totalRuns >= 1, runId: runs[runs.length-1]?.id },
+    { cat:'📦 Volume', id:'runs10',   icon:'🔟', name:'10 corridas',         cond: totalRuns >= 10 },
+    { cat:'📦 Volume', id:'runs25',   icon:'💪', name:'25 corridas',         cond: totalRuns >= 25 },
+    { cat:'📦 Volume', id:'runs50',   icon:'⚡', name:'50 corridas',         cond: totalRuns >= 50 },
+    { cat:'📦 Volume', id:'runs100',  icon:'🌠', name:'100 corridas',        cond: totalRuns >= 100 },
+    { cat:'📦 Volume', id:'km100',    icon:'💯', name:'100 km totais',       cond: totalKm >= 100 },
+    { cat:'📦 Volume', id:'km250',    icon:'🌟', name:'250 km totais',       cond: totalKm >= 250 },
+    { cat:'📦 Volume', id:'km500',    icon:'🚀', name:'500 km totais',       cond: totalKm >= 500 },
+    { cat:'📦 Volume', id:'km1000',   icon:'🏆', name:'1000 km totais',      cond: totalKm >= 1000 },
+    // Distância — runId = run where that distance was first reached
+    { cat:'📏 Distância', id:'dist5',  icon:'5️⃣', name:'Corrida de 5 km',  cond: maxDist >= 5,  runId: [...runs].sort((a,b)=>new Date(a.date)-new Date(b.date)).find(r=>r.dist>=5)?.id },
+    { cat:'📏 Distância', id:'dist10', icon:'🔟', name:'Corrida de 10 km', cond: maxDist >= 10, runId: [...runs].sort((a,b)=>new Date(a.date)-new Date(b.date)).find(r=>r.dist>=10)?.id },
+    { cat:'📏 Distância', id:'dist15', icon:'📍', name:'Corrida de 15 km', cond: maxDist >= 15, runId: [...runs].sort((a,b)=>new Date(a.date)-new Date(b.date)).find(r=>r.dist>=15)?.id },
+    { cat:'📏 Distância', id:'dist21', icon:'🥇', name:'Meia maratona',     cond: maxDist >= 21, runId: [...runs].sort((a,b)=>new Date(a.date)-new Date(b.date)).find(r=>r.dist>=21)?.id },
+    { cat:'📏 Distância', id:'dist42', icon:'🏅', name:'Maratona',          cond: maxDist >= 42, runId: [...runs].sort((a,b)=>new Date(a.date)-new Date(b.date)).find(r=>r.dist>=42)?.id },
+    // Streak — no specific run to link
+    { cat:'🔥 Consistência', id:'streak4',  icon:'🔥', name:'4 semanas seguidas',  cond: streak.best >= 4 },
+    { cat:'🔥 Consistência', id:'streak8',  icon:'🔥', name:'8 semanas seguidas',  cond: streak.best >= 8 },
+    { cat:'🔥 Consistência', id:'streak12', icon:'🔥', name:'12 semanas seguidas', cond: streak.best >= 12 },
+    { cat:'🔥 Consistência', id:'streak20', icon:'🔥', name:'20 semanas seguidas', cond: streak.best >= 20 },
+    { cat:'🔥 Consistência', id:'streak52', icon:'🌋', name:'1 ano seguido!',       cond: streak.best >= 52 },
+    // Velocidade 1km — record 4:30, remover <5:30, adicionar <3:50 no topo → 2/5 conquistados
+    { cat:'⚡ Velocidade 1 km', id:'pace1_500', icon:'🏃', name:'1 km < 5:00', cond: best1km < 300, runId: best1kmId },
+    { cat:'⚡ Velocidade 1 km', id:'pace1_445', icon:'💨', name:'1 km < 4:45', cond: best1km < 285, runId: best1kmId },
+    { cat:'⚡ Velocidade 1 km', id:'pace1_430', icon:'⚡', name:'1 km < 4:30', cond: best1km < 270, runId: best1kmId },
+    { cat:'⚡ Velocidade 1 km', id:'pace1_410', icon:'🚀', name:'1 km < 4:10', cond: best1km < 250, runId: best1kmId },
+    { cat:'⚡ Velocidade 1 km', id:'pace1_350', icon:'🔥', name:'1 km < 3:50', cond: best1km < 230, runId: best1kmId },
+    // Velocidade 5km — record 4:46/km, remover <6:00, adicionar <4:00 no topo → 2/5 conquistados
+    { cat:'🏆 Velocidade 5 km', id:'pace5_530', icon:'🏃', name:'5 km < 5:30/km', cond: best5km < 1650, runId: best5kmId },
+    { cat:'🏆 Velocidade 5 km', id:'pace5_500', icon:'💨', name:'5 km < 5:00/km', cond: best5km < 1500, runId: best5kmId },
+    { cat:'🏆 Velocidade 5 km', id:'pace5_445', icon:'⚡', name:'5 km < 4:45/km', cond: best5km < 1425, runId: best5kmId },
+    { cat:'🏆 Velocidade 5 km', id:'pace5_420', icon:'🚀', name:'5 km < 4:20/km', cond: best5km < 1300, runId: best5kmId },
+    { cat:'🏆 Velocidade 5 km', id:'pace5_400', icon:'🔥', name:'5 km < 4:00/km', cond: best5km < 1200, runId: best5kmId },
+    // Velocidade 10km — record 5:20/km, remover <6:30, adicionar <4:20 no topo → 2/5 conquistados
+    { cat:'🎯 Velocidade 10 km', id:'pace10_600', icon:'🏃', name:'10 km < 6:00/km', cond: best10km < 3600, runId: best10kmId },
+    { cat:'🎯 Velocidade 10 km', id:'pace10_530', icon:'💨', name:'10 km < 5:30/km', cond: best10km < 3300, runId: best10kmId },
+    { cat:'🎯 Velocidade 10 km', id:'pace10_500', icon:'⚡', name:'10 km < 5:00/km (50:00)', cond: best10km < 3000, runId: best10kmId },
+    { cat:'🎯 Velocidade 10 km', id:'pace10_440', icon:'🚀', name:'10 km < 4:40/km', cond: best10km < 2800, runId: best10kmId },
+    { cat:'🎯 Velocidade 10 km', id:'pace10_420', icon:'🔥', name:'10 km < 4:20/km', cond: best10km < 2600, runId: best10kmId },
+  ];
+
+  // Group by category
+  const cats = [...new Set(all.map(b => b.cat))];
+  const wrap = document.getElementById('badges-wrap');
+  wrap.style.display = 'block';
+  wrap.innerHTML = cats.map(cat => {
+    const badges = all.filter(b => b.cat === cat);
+    const earnedInCat = badges.filter(b => b.cond);
+    const lockedInCat = badges.filter(b => !b.cond);
+    // Show all earned + all locked per category
+    const toShow = [...earnedInCat, ...lockedInCat];
+    return `<div style="margin-bottom:16px;width:100%">
+      <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;padding:0 2px">${cat} <span style="color:var(--accent)">${earnedInCat.length}/${badges.length}</span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${toShow.map(b => {
+          const earned = b.cond;
+          const clickable = earned && b.runId;
+          return `<div
+            ${clickable ? `onclick="openRunModal('${b.runId}')" title="${b.name} — clica para ver a corrida"` : `title="${b.name}"`}
+            style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 6px;
+              background:${earned?'var(--surface2)':'var(--surface)'};
+              border:1px solid ${earned?'var(--border)':'rgba(42,42,58,.5)'};
+              border-radius:10px;min-width:56px;max-width:72px;
+              ${earned?'':'opacity:.35;'}
+              ${clickable?'cursor:pointer;':''}">
+            <div style="font-size:20px${earned?'':';filter:grayscale(1)'}">${b.icon}</div>
+            <div style="font-size:8px;color:${earned?'var(--text)':'var(--muted)'};text-align:center;line-height:1.3">${b.name}</div>
+            ${clickable ? `<div style="font-size:7px;color:var(--accent);margin-top:1px">ver →</div>` : ''}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('');
+
+  if (!runs.length) wrap.innerHTML = '<div style="color:var(--muted);font-size:12px">Faz a primeira corrida para desbloquear conquistas!</div>';
+}
+
+function getISOWeekKey(d) {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = date.getUTCDay() || 7; // Mon=1..Sun=7
+  date.setUTCDate(date.getUTCDate() + 4 - day); // shift to Thursday of this week
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const week = Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+  return `${date.getUTCFullYear()}-${String(week).padStart(2,'0')}`;
+}
+
+function weekKeyToMonday(key) {
+  // Convert "YYYY-WW" to the Monday of that ISO week, as ms since epoch
+  const [year, week] = key.split('-').map(Number);
+  // Jan 4 is always in week 1
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const jan4Day = jan4.getUTCDay() || 7; // Mon=1
+  const week1Monday = new Date(jan4);
+  week1Monday.setUTCDate(jan4.getUTCDate() - (jan4Day - 1));
+  return week1Monday.getTime() + (week - 1) * 7 * 86400000;
+}
+
+function calcStreak() {
+  const weeks = new Set();
+  runs.forEach(r => weeks.add(getISOWeekKey(new Date(r.date))));
+  const sorted = Array.from(weeks).sort().reverse(); // most recent first
+  if (!sorted.length) return { current: 0, best: 0 };
+
+  const thisWeekKey = getISOWeekKey(new Date());
+  const WEEK_MS = 7 * 24 * 3600 * 1000;
+
+  // Convert all keys to Monday timestamps for exact arithmetic
+  const mondays = sorted.map(weekKeyToMonday);
+
+  let streak = 1, best = 1;
+  for (let i = 1; i < mondays.length; i++) {
+    const diff = Math.round((mondays[i-1] - mondays[i]) / WEEK_MS);
+    if (diff === 1) { streak++; }
+    else { best = Math.max(best, streak); streak = 1; }
+  }
+  best = Math.max(best, streak);
+
+  // Current streak: most recent run must be this week or last week
+  const thisMonday = weekKeyToMonday(thisWeekKey);
+  const diffFromToday = Math.round((thisMonday - mondays[0]) / WEEK_MS);
+  let current = 0;
+  if (diffFromToday <= 1) {
+    current = 1;
+    for (let i = 1; i < mondays.length; i++) {
+      const diff = Math.round((mondays[i-1] - mondays[i]) / WEEK_MS);
+      if (diff === 1) current++;
+      else break;
+    }
+  }
+
+  return { current, best };
+}
+
+function getWeek(d) {
+  const onejan = new Date(d.getFullYear(), 0, 1);
+  return Math.ceil((((d - onejan) / 86400000) + onejan.getDay() + 1) / 7);
+}
+
+function renderHeatmapPage() {
+  if (!runs.length) {
+    document.getElementById('heatmap-empty').style.display = '';
+    document.getElementById('heatmap-data').style.display = 'none';
+    return;
+  }
+  document.getElementById('heatmap-empty').style.display = 'none';
+  document.getElementById('heatmap-data').style.display = '';
+
+  const firstRun = new Date(runs[runs.length - 1].date); // runs sorted newest first
+  const now = new Date();
+  const todayDow = (now.getDay() + 6) % 7;
+  const thisMonday = new Date(now);
+  thisMonday.setDate(now.getDate() - todayDow);
+  thisMonday.setHours(0, 0, 0, 0);
+  // How many weeks since first run?
+  const firstDow = (firstRun.getDay() + 6) % 7;
+  const firstMonday = new Date(firstRun);
+  firstMonday.setDate(firstRun.getDate() - firstDow);
+  firstMonday.setHours(0, 0, 0, 0);
+  const weeksSinceFirst = Math.ceil((thisMonday - firstMonday) / (7 * 86400000)) + 1;
+  const WEEKS = Math.max(weeksSinceFirst, 4);
+
+  document.getElementById('heatmap-subtitle').textContent =
+    `${runs.length} corridas · desde ${firstRun.toLocaleDateString('pt-PT',{month:'long',year:'numeric'})}`;
+
+  // Weekly bars
+  const weekMap = {};
+  runs.forEach(r => {
+    const d = new Date(r.date);
+    const monday = new Date(d);
+    monday.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    const key = monday.toISOString().slice(0,10);
+    weekMap[key] = (weekMap[key] || 0) + r.dist;
+  });
+  const weeks = Object.keys(weekMap).sort().slice(-18);
+  const maxKm = Math.max(...weeks.map(k => weekMap[k]), 1);
+  document.getElementById('weekly-bars').innerHTML = weeks.reverse().map(k => {
+    const km = weekMap[k];
+    const d = new Date(k + 'T12:00:00');
+    const label = d.toLocaleDateString('pt-PT',{day:'2-digit',month:'short'});
+    const pct = (km / maxKm * 100).toFixed(1);
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:7px">
+      <div style="font-size:11px;color:var(--muted);width:60px;flex-shrink:0">${label}</div>
+      <div style="flex:1;height:22px;background:var(--surface2);border-radius:5px;overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,var(--accent2),var(--accent));border-radius:5px"></div>
+      </div>
+      <div style="font-family:var(--font-display);font-size:13px;font-weight:700;color:var(--accent);width:42px;text-align:right">${km.toFixed(1)}<span style="font-size:10px;color:var(--muted);font-weight:400">km</span></div>
+    </div>`;
+  }).join('');
+
+  requestAnimationFrame(() => requestAnimationFrame(() => renderHeatmap(WEEKS)));
+}
+
+function renderHeatmap(WEEKS) {
+  WEEKS = WEEKS || 18;
+  const wrap = document.getElementById('heatmap-canvas').parentElement;
+
+  const oldCanvas = document.getElementById('heatmap-canvas');
+  const newCanvas = document.createElement('canvas');
+  newCanvas.id = 'heatmap-canvas';
+  oldCanvas.parentNode.replaceChild(newCanvas, oldCanvas);
+
+  const canvas = newCanvas;
+  const tip = document.getElementById('heatmap-tooltip');
+  const DAYS = 7;
+  const DAY_LABELS = ['S','T','Q','Q','S','S','D'];
+  const dpr = window.devicePixelRatio || 1;
+
+  const dayMap = {};
+  runs.forEach(r => {
+    const d = new Date(r.date);
+    const key = d.toISOString().slice(0, 10);
+    dayMap[key] = (dayMap[key] || 0) + r.dist;
+  });
+
+  const now = new Date();
+  const todayKey = now.toISOString().slice(0, 10);
+  const todayDow = (now.getDay() + 6) % 7;
+  const thisMonday = new Date(now);
+  thisMonday.setDate(now.getDate() - todayDow);
+  thisMonday.setHours(0, 0, 0, 0);
+
+  const LABEL_H = 20;
+  const MONTH_W = 24;
+  const gap = 3;
+  const totalW = wrap.offsetWidth || 300;
+  // Smaller cells to fit more weeks
+  const cellSize = Math.max(6, Math.floor((totalW - MONTH_W - (DAYS - 1) * gap) / DAYS));
+  const totalH = LABEL_H + WEEKS * cellSize + (WEEKS - 1) * gap + 4;
+
+  canvas.width  = Math.round(totalW * dpr);
+  canvas.height = Math.round(totalH * dpr);
+  canvas.style.width  = totalW + 'px';
+  canvas.style.height = totalH + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  // Day-of-week headers
+  ctx.font = 'bold 9px DM Mono, monospace';
+  ctx.fillStyle = 'rgba(107,107,128,.9)';
+  ctx.textAlign = 'center';
+  for (let d = 0; d < DAYS; d++) {
+    const x = MONTH_W + d * (cellSize + gap) + cellSize / 2;
+    ctx.fillText(DAY_LABELS[d], x, 12);
+  }
+
+  const cellData = [];
+  let lastShownMonth = -1;
+
+  for (let w = 0; w < WEEKS; w++) {
+    const rowMonday = new Date(thisMonday);
+    rowMonday.setDate(thisMonday.getDate() - w * 7);
+
+    for (let d = 0; d < DAYS; d++) {
+      const day = new Date(rowMonday);
+      day.setDate(rowMonday.getDate() + d);
+      const mo = day.getMonth();
+      if (mo !== lastShownMonth) {
+        const labelY = LABEL_H + w * (cellSize + gap) + Math.round(cellSize / 2) + 3;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(107,107,128,.8)';
+        ctx.font = '7px DM Mono, monospace';
+        ctx.fillText(
+          day.toLocaleDateString('pt-PT', { month: 'short' }).slice(0, 3).toUpperCase(),
+          MONTH_W / 2, labelY
+        );
+        lastShownMonth = mo;
+        break;
+      }
+    }
+
+    for (let d = 0; d < DAYS; d++) {
+      const day = new Date(rowMonday);
+      day.setDate(rowMonday.getDate() + d);
+      const key = day.toISOString().slice(0, 10);
+      const km  = dayMap[key] || 0;
+      const isFuture = key > todayKey;
+
+      const x = MONTH_W + d * (cellSize + gap);
+      const y = LABEL_H  + w * (cellSize + gap);
+
+      if (isFuture) {
+        ctx.fillStyle = 'rgba(26,26,36,.4)';
+      } else if (km === 0) {
+        ctx.fillStyle = '#1a1a24';
+      } else if (km < 4) {
+        ctx.fillStyle = 'rgba(232,255,71,.28)';
+      } else if (km < 8) {
+        ctx.fillStyle = 'rgba(232,255,71,.55)';
+      } else if (km < 14) {
+        ctx.fillStyle = 'rgba(232,255,71,.80)';
+      } else {
+        ctx.fillStyle = '#e8ff47';
+      }
+
+      ctx.beginPath();
+      ctx.roundRect(x, y, cellSize, cellSize, 2);
+      ctx.fill();
+
+      // Draw km text inside cell if large enough and has a run
+      if (km > 0 && cellSize >= 18) {
+        const textColor = km >= 8 ? '#0a0a0f' : 'rgba(232,255,71,.9)';
+        ctx.fillStyle = textColor;
+        ctx.font = `bold ${Math.min(cellSize * 0.38, 10)}px DM Mono, monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText(km.toFixed(1), x + cellSize / 2, y + cellSize / 2 + 3);
+      }
+
+      // Today outline
+      if (key === todayKey) {
+        ctx.strokeStyle = 'rgba(232,255,71,.9)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect(x + 0.75, y + 0.75, cellSize - 1.5, cellSize - 1.5, 2);
+        ctx.stroke();
+      }
+
+      if (!isFuture) cellData.push({ x, y, w: cellSize, h: cellSize, key, km });
+    }
+  }
+
+  const getCell = (cx, cy) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = cx - rect.left;
+    const my = cy - rect.top;
+    return cellData.find(c => mx >= c.x && mx <= c.x + c.w && my >= c.y && my <= c.y + c.h);
+  };
+
+  const showTip = (cell) => {
+    if (!cell) { tip.classList.remove('visible'); return; }
+    const d = new Date(cell.key + 'T12:00:00');
+    const label = d.toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit', month: 'short' });
+    tip.textContent = cell.km > 0
+      ? `${label} · ${cell.km.toFixed(1)} km`
+      : `${label} · sem corrida`;
+    tip.classList.add('visible');
+    let tx = cell.x + cell.w / 2 - tip.offsetWidth / 2;
+    tx = Math.max(0, Math.min(tx, totalW - tip.offsetWidth - 4));
+    tip.style.left = tx + 'px';
+    tip.style.top  = Math.max(2, cell.y - tip.offsetHeight - 6) + 'px';
+  };
+
+  canvas.addEventListener('click', e => {
+    const cell = getCell(e.clientX, e.clientY);
+    if (!cell) return;
+    if (cell.km) {
+      const dayRuns = runs.filter(r => r.date.slice(0, 10) === cell.key);
+      if (dayRuns.length === 1) { openRunModal(dayRuns[0].id); return; }
+    }
+    showTip(cell);
+  });
+  canvas.addEventListener('mousemove', e => showTip(getCell(e.clientX, e.clientY)));
+  canvas.addEventListener('mouseleave', () => tip.classList.remove('visible'));
+  canvas.addEventListener('touchend', e => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    const cell = getCell(t.clientX, t.clientY);
+    if (!cell) return;
+    if (cell.km) {
+      const dayRuns = runs.filter(r => r.date.slice(0, 10) === cell.key);
+      if (dayRuns.length === 1) { openRunModal(dayRuns[0].id); return; }
+    }
+    showTip(cell);
+    setTimeout(() => tip.classList.remove('visible'), 2200);
+  }, { passive: false });
+}
+
+function renderMonthlyChart() {
+  const monthMap = {};
+  runs.forEach(r => {
+    const d = new Date(r.date);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    monthMap[key] = (monthMap[key] || 0) + r.dist;
+  });
+  const labels = Object.keys(monthMap).sort().slice(-12);
+  const values = labels.map(k => Math.round(monthMap[k]));
+  const shortLabels = labels.map(k => {
+    const [y,m] = k.split('-');
+    return new Date(+y, +m-1).toLocaleDateString('pt-PT',{month:'short'});
+  });
+
+  const ctx = document.getElementById('monthly-chart').getContext('2d');
+  if (monthlyChartInst) monthlyChartInst.destroy();
+  monthlyChartInst = drawBarChart(ctx, shortLabels, values, '#e8ff47');
+}
+
+// ══════════════════════════════════════════
+//  RUNS LIST & FILTERS
+// ══════════════════════════════════════════
+function toggleFiltersPanel() {
+  filtersOpen = !filtersOpen;
+  const panel = document.getElementById('adv-filters');
+  const btn = document.getElementById('filter-toggle-btn');
+  panel.style.display = filtersOpen ? 'block' : 'none';
+  btn.style.background = filtersOpen ? 'var(--accent)' : 'var(--surface)';
+  btn.style.color = filtersOpen ? '#0a0a0f' : 'var(--text)';
+  btn.style.borderColor = filtersOpen ? 'var(--accent)' : 'var(--border)';
+}
+
+function filterPeriod(period, chipEl) {
+  document.querySelectorAll('#filter-row .filter-chip').forEach(c => c.classList.remove('active'));
+  chipEl.classList.add('active');
+  fPeriod = period;
+  applyFiltersAndRender();
+}
+
+function cycleSort(col) {
+  if (fSort === col) {
+    fSortDir = fSortDir === 'desc' ? 'asc' : 'desc';
+  } else {
+    fSort = col;
+    fSortDir = 'desc'; // default: biggest first
+  }
+  updateSortHeaders();
+  applyFiltersAndRender();
+}
+
+function setSort(sort, chipEl) {
+  // Keep chip-based sort in filters panel working too
+  chipEl.closest('div').querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  chipEl.classList.add('active');
+  fSort = sort; fSortDir = 'desc';
+  updateSortHeaders();
+  applyFiltersAndRender();
+}
+
+function updateSortHeaders() {
+  ['date','dist','time','pace'].forEach(col => {
+    const hdr = document.getElementById('sh-' + col);
+    const arr = document.getElementById('sa-' + col);
+    if (!hdr || !arr) return;
+    if (fSort === col) {
+      hdr.classList.add('active');
+      arr.textContent = fSortDir === 'desc' ? ' ↓' : ' ↑';
+    } else {
+      hdr.classList.remove('active');
+      arr.textContent = '';
+    }
+  });
+}
+
+function setMinDist(val, chipEl) {
+  chipEl.closest('div').querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  chipEl.classList.add('active');
+  fMinDist = val;
+  applyFiltersAndRender();
+}
+
+function setMaxPace(val, chipEl) {
+  chipEl.closest('div').querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  chipEl.classList.add('active');
+  fMaxPace = val;
+  applyFiltersAndRender();
+}
+
+function setMaxSplit(val, chipEl) {
+  chipEl.closest('div').querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  chipEl.classList.add('active');
+  fMaxSplit = val;
+  applyFiltersAndRender();
+}
+
+function applyFiltersAndRender() {
+  const now = new Date();
+  let filtered = [...runs];
+
+  // Period
+  if (fPeriod === 'month') filtered = filtered.filter(r => new Date(r.date) >= new Date(now.getFullYear(), now.getMonth(), 1));
+  else if (fPeriod === '3m') { const t = new Date(now); t.setMonth(t.getMonth()-3); filtered = filtered.filter(r => new Date(r.date) >= t); }
+  else if (fPeriod === '6m') { const t = new Date(now); t.setMonth(t.getMonth()-6); filtered = filtered.filter(r => new Date(r.date) >= t); }
+  else if (fPeriod === 'year') filtered = filtered.filter(r => new Date(r.date).getFullYear() === now.getFullYear());
+
+  // Distance
+  if (fMinDist > 0) filtered = filtered.filter(r => r.dist >= fMinDist);
+
+  // Pace
+  if (fMaxPace < 999) filtered = filtered.filter(r => r.secs && r.dist && (r.secs/r.dist) <= fMaxPace);
+
+  // Best split
+  if (fMaxSplit < 999) filtered = filtered.filter(r => r.bestSplit && r.bestSplit <= fMaxSplit);
+
+  // Sort
+  const dir = fSortDir === 'asc' ? 1 : -1;
+  if (fSort === 'date') filtered.sort((a,b) => dir * (new Date(a.date) - new Date(b.date)));
+  else if (fSort === 'dist') filtered.sort((a,b) => dir * (a.dist - b.dist));
+  else if (fSort === 'pace') filtered.sort((a,b) => {
+    const pa = a.secs/a.dist || 999, pb = b.secs/b.dist || 999;
+    return dir * (pa - pb);
+  });
+  else if (fSort === 'split') filtered.sort((a,b) => dir * ((a.bestSplit||9999) - (b.bestSplit||9999)));
+  else if (fSort === 'date') filtered.sort((a,b) => dir * (new Date(a.date) - new Date(b.date)));
+  else if (fSort === 'time') filtered.sort((a,b) => dir * (a.secs - b.secs));
+
+  renderRunsList(filtered);
+}
+
+function renderRunsList(list) {
+  if (!runs.length) {
+    document.getElementById('runs-empty').style.display = '';
+    document.getElementById('runs-data').style.display = 'none';
+    return;
+  }
+  document.getElementById('runs-empty').style.display = 'none';
+  document.getElementById('runs-data').style.display = '';
+  document.getElementById('runs-subtitle').textContent = `${list.length} de ${runs.length} corrida${runs.length!==1?'s':''}`;
+
+  // Show/hide sort header
+  const sh = document.getElementById('sort-header');
+  if (sh) sh.style.display = list.length ? 'flex' : 'none';
+  updateSortHeaders();
+
+  const el = document.getElementById('runs-list');
+  el.innerHTML = list.map(r => {
+    const splitBadge = r.bestSplit
+      ? `<div style="font-size:10px;color:var(--accent2);margin-top:1px">⚡ ${fmtPace(r.bestSplit,1)}</div>`
+      : '';
+    const isActiveSortDate  = fSort === 'date'  ? `color:var(--accent)` : `color:var(--muted)`;
+    const isActiveSortDist  = fSort === 'dist'  ? `color:var(--accent)` : `color:var(--text)`;
+    const isActiveSortTime  = fSort === 'time'  ? `color:var(--accent)` : `color:var(--muted)`;
+    const isActiveSortPace  = fSort === 'pace'  ? `color:var(--accent2)` : `color:var(--muted)`;
+    const dateShort = new Date(r.date).toLocaleDateString('pt-PT',{day:'2-digit',month:'2-digit'});
+    return `
+    <div class="run-card" onclick="openRunModal('${r.id}')">
+      <div class="run-type-icon">🏃</div>
+      <div class="run-info">
+        <div class="run-name">${r.name}</div>
+        ${splitBadge}
+      </div>
+      <div style="display:flex;gap:0;flex-shrink:0;align-items:center">
+        <div style="width:44px;text-align:right">
+          <div style="font-family:var(--font-display);font-size:12px;font-weight:700;line-height:1;${isActiveSortDate}">${dateShort}</div>
+          <div style="font-size:9px;color:var(--muted)">data</div>
+        </div>
+        <div style="width:48px;text-align:right">
+          <div style="font-family:var(--font-display);font-size:16px;font-weight:800;line-height:1;${isActiveSortDist}">${r.dist.toFixed(1)}</div>
+          <div style="font-size:9px;color:var(--muted)">km</div>
+        </div>
+        <div style="width:48px;text-align:right">
+          <div style="font-family:var(--font-display);font-size:14px;font-weight:700;line-height:1;${isActiveSortTime}">${fmtTime(r.secs)}</div>
+          <div style="font-size:9px;color:var(--muted)">tempo</div>
+        </div>
+        <div style="width:48px;text-align:right">
+          <div style="font-family:var(--font-display);font-size:14px;font-weight:700;line-height:1;${isActiveSortPace}">${fmtPace(r.secs,r.dist)}</div>
+          <div style="font-size:9px;color:var(--muted)">/km</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════
+//  MODAL
+// ══════════════════════════════════════════
+function openRunModal(id) {
+  const r = runs.find(x => x.id === id);
+  if (!r) return;
+  currentRunId = id;
+  document.getElementById('modal-title').textContent = r.name;
+  document.getElementById('modal-date').textContent = fmtDate(r.date);
+  document.getElementById('modal-dist').textContent = r.dist.toFixed(2);
+  document.getElementById('modal-time').textContent = fmtTime(r.secs);
+  document.getElementById('modal-pace').textContent = fmtPace(r.secs, r.dist);
+  document.getElementById('modal-elev').textContent = r.elev || '—';
+  document.getElementById('modal-calories').textContent = r.cals || '—';
+  document.getElementById('modal-bestsplit').textContent = r.bestSplit ? fmtPace(r.bestSplit, 1) : '—';
+
+  // Splits
+  const splits = gpxSplits[id];
+  const splitsSection = document.getElementById('modal-splits-section');
+  const splitsEl = document.getElementById('modal-splits');
+  if (splits && splits.length) {
+    splitsSection.style.display = '';
+    const avgPace = r.secs / r.dist;
+    let splitsHtml = splits.map((s, i) => {
+      const faster = s < avgPace;
+      const bar = Math.max(20, Math.min(100, (avgPace / s) * 60));
+      return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <div style="font-size:11px;color:var(--muted);width:28px;flex-shrink:0">km${i+1}</div>
+        <div style="flex:1;height:20px;background:var(--bg);border-radius:4px;overflow:hidden">
+          <div style="height:100%;width:${bar}%;background:${faster?'var(--success)':'var(--accent2)'};border-radius:4px;opacity:.8"></div>
+        </div>
+        <div style="font-family:var(--font-display);font-size:13px;font-weight:700;width:40px;text-align:right;color:${faster?'var(--success)':'var(--accent2)'}">${fmtPace(s,1)}</div>
+      </div>`;
+    }).join('');
+
+    // Partial final split: if run doesn't end on a round km
+    const partialDist = r.dist - splits.length;
+    if (partialDist > 0.02 && partialDist < 0.999) {
+      // Calculate pace for partial km using gpxPoints if available, else use total time minus split time
+      const pts2 = gpxPoints[id];
+      let partialSecs = null;
+      if (pts2 && pts2.length > 1) {
+        const lastFullKm = splits.length;
+        let j = 0;
+        while (j < pts2.length - 1 && pts2[j+1].dist < lastFullKm) j++;
+        if (pts2[j].dist <= lastFullKm + 0.05) {
+          const frac = (lastFullKm - pts2[j].dist) / Math.max(pts2[j+1].dist - pts2[j].dist, 0.0001);
+          const tKmN = pts2[j].t + frac * (pts2[j+1].t - pts2[j].t);
+          partialSecs = (pts2[pts2.length-1].t - tKmN) / 1000;
+        }
+      }
+      if (!partialSecs) {
+        // Fallback: total time minus sum of full splits
+        partialSecs = r.secs - splits.reduce((a,b) => a+b, 0);
+      }
+      if (partialSecs > 5) {
+        const paceForPartial = partialSecs / partialDist; // sec/km equivalent
+        const faster = paceForPartial < avgPace;
+        const bar = Math.max(10, Math.min(100, (avgPace / paceForPartial) * 60));
+        const distLabel = partialDist >= 0.1
+          ? `${Math.round(partialDist * 1000)}m`
+          : `${Math.round(partialDist * 1000)}m`;
+        splitsHtml += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;opacity:.75">
+          <div style="font-size:11px;color:var(--muted);width:28px;flex-shrink:0">${distLabel}</div>
+          <div style="flex:1;height:20px;background:var(--bg);border-radius:4px;overflow:hidden">
+            <div style="height:100%;width:${bar}%;background:${faster?'var(--success)':'var(--accent2)'};border-radius:4px;opacity:.8"></div>
+          </div>
+          <div style="font-family:var(--font-display);font-size:13px;font-weight:700;width:40px;text-align:right;color:${faster?'var(--success)':'var(--accent2)'}">${fmtPace(paceForPartial,1)}</div>
+        </div>`;
+      }
+    }
+    splitsEl.innerHTML = splitsHtml;
+  } else {
+    splitsSection.style.display = 'none';
+  }
+
+  document.getElementById('run-modal').classList.add('open');
+
+  // Pace chart from dense GPS points
+  const pts = gpxPoints[id];
+  const chartSection = document.getElementById('modal-pace-chart-section');
+  if (pts && pts.length > 5) {
+    chartSection.style.display = '';
+    // Build 100m pace windows
+    const WIN = 0.1;
+    const pace100 = [];
+    let i = 0;
+    while (i < pts.length - 1) {
+      const startDist = pts[i].dist;
+      const endTarget = startDist + WIN;
+      if (endTarget > pts[pts.length-1].dist) break;
+      let j = i;
+      while (j < pts.length - 1 && pts[j+1].dist < endTarget) j++;
+      if (j >= pts.length - 1) break;
+      const frac = (endTarget - pts[j].dist) / Math.max(pts[j+1].dist - pts[j].dist, 0.0001);
+      const tEnd = pts[j].t + frac * (pts[j+1].t - pts[j].t);
+      const secs = (tEnd - pts[i].t) / 1000;
+      const paceKm = secs / WIN;
+      if (secs > 3 && paceKm > 120 && paceKm < 900) pace100.push({ dist: startDist + WIN/2, pace: paceKm });
+      while (i < pts.length - 1 && pts[i].dist < startDist + WIN) i++;
+    }
+    setTimeout(() => drawModalPaceChart(pace100, r.secs / r.dist), 50);
+  } else if (splits && splits.length) {
+    chartSection.style.display = '';
+    // Fallback: use km splits as pace points
+    const pace100 = splits.map((s, i) => ({ dist: i + 0.5, pace: s }));
+    setTimeout(() => drawModalPaceChart(pace100, r.secs / r.dist), 50);
+  } else {
+    chartSection.style.display = 'none';
+  }
+}
+function drawModalPaceChart(pace100, avgPaceKm) {
+  const canvas = document.getElementById('modal-pace-canvas');
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.parentElement.offsetWidth || 300;
+  const H = 110;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  if (!pace100.length) return;
+
+  // Light smooth only (3-point = 300m) to reduce GPS noise without killing intervals
+  const smoothed = pace100.map((p, i, arr) => {
+    const slice = arr.slice(Math.max(0,i-1), i+2);
+    return { dist: p.dist, pace: slice.reduce((s,x)=>s+x.pace,0)/slice.length };
+  });
+
+  const pad = { l: 40, r: 8, t: 10, b: 22 };
+  const paces = smoothed.map(p => p.pace);
+  const minP = Math.min(...paces) * 0.97;
+  const maxP = Math.max(...paces) * 1.03;
+  const maxDist = pace100[pace100.length-1].dist;
+
+  const sx = d => pad.l + (d / maxDist) * (W - pad.l - pad.r);
+  const sy = p => pad.t + ((p - minP) / (maxP - minP)) * (H - pad.t - pad.b);
+
+  // Background fill
+  ctx.fillStyle = 'rgba(255,255,255,.03)';
+  ctx.beginPath();
+  ctx.moveTo(sx(smoothed[0].dist), sy(smoothed[0].pace));
+  smoothed.forEach(p => ctx.lineTo(sx(p.dist), sy(p.pace)));
+  ctx.lineTo(sx(smoothed[smoothed.length-1].dist), H - pad.b);
+  ctx.lineTo(sx(smoothed[0].dist), H - pad.b);
+  ctx.closePath(); ctx.fill();
+
+  // Avg pace reference line (dashed)
+  const avgY = sy(avgPaceKm);
+  if (avgY > pad.t && avgY < H - pad.b) {
+    ctx.strokeStyle = 'rgba(255,255,255,.2)'; ctx.lineWidth = 1; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(pad.l, avgY); ctx.lineTo(W-pad.r, avgY); ctx.stroke();
+    ctx.setLineDash([]);
+    // avg label
+    ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.font = '8px DM Mono, monospace'; ctx.textAlign = 'left';
+    const m = Math.floor(avgPaceKm/60), s = Math.round(avgPaceKm%60);
+    ctx.fillText(`${m}:${String(s).padStart(2,'0')}`, pad.l+2, avgY-2);
+  }
+
+  // Coloured line segments (green=faster than avg, orange=slower)
+  for (let i = 1; i < smoothed.length; i++) {
+    const p0 = smoothed[i-1], p1 = smoothed[i];
+    const faster = (p0.pace + p1.pace) / 2 < avgPaceKm;
+    ctx.strokeStyle = faster ? '#4ade80' : '#ff6b35';
+    ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(sx(p0.dist), sy(p0.pace));
+    ctx.lineTo(sx(p1.dist), sy(p1.pace));
+    ctx.stroke();
+  }
+
+  // Y axis labels: minP=fastest pace=top, maxP=slowest pace=bottom
+  ctx.fillStyle = 'rgba(107,107,128,.9)'; ctx.font = '9px DM Mono, monospace'; ctx.textAlign = 'right';
+  [[minP, pad.t+9], [maxP, H-pad.b-2]].forEach(([p, y]) => {
+    const m = Math.floor(p/60), s = Math.round(p%60);
+    ctx.fillText(`${m}:${String(s).padStart(2,'0')}`, pad.l-3, y);
+  });
+
+  // X axis km marks
+  ctx.textAlign = 'center';
+  for (let km = 1; km <= Math.floor(maxDist); km++) {
+    const x = sx(km);
+    ctx.strokeStyle = 'rgba(255,255,255,.06)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, H-pad.b); ctx.stroke();
+    ctx.fillStyle = 'rgba(107,107,128,.6)'; ctx.font = '9px DM Mono, monospace';
+    ctx.fillText(km+'km', x, H-5);
+  }
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('run-modal') || !e) {
+    document.getElementById('run-modal').classList.remove('open');
+  }
+}
+async function deleteCurrentRun() {
+  if (!currentRunId) return;
+  const r = runs.find(x => x.id === currentRunId);
+  if (!r) return;
+  if (!confirm(`Eliminar "${r.name}"? Esta acção é irreversível.`)) return;
+  runs = runs.filter(x => x.id !== currentRunId);
+  delete gpxRoutes[currentRunId];
+  delete gpxSplits[currentRunId];
+  delete gpxPoints[currentRunId];
+  await save();
+  renderAll();
+  document.getElementById('run-modal').classList.remove('open');
+  showToast('Corrida eliminada');
+}
+
+// ══════════════════════════════════════════
+//  ANALYSIS
+// ══════════════════════════════════════════
+function showAnalysisTab(tab, btn) {
+  ['pace','treinos','monthly','pb'].forEach(t => {
+    document.getElementById('tab-'+t).style.display = t===tab ? '' : 'none';
+  });
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (tab === 'treinos') renderTreinos('all');
+}
+
+function renderAnalysis() {
+  if (!runs.length) {
+    document.getElementById('analysis-empty').style.display = '';
+    document.getElementById('analysis-data').style.display = 'none';
+    return;
+  }
+  document.getElementById('analysis-empty').style.display = 'none';
+  document.getElementById('analysis-data').style.display = '';
+  renderPaceDistribution();
+  renderPaceChart();
+  renderScatter();
+  renderMonthlyList();
+  renderPBs();
+}
+
+// ══════════════════════════════════════════
+//  CLASSIFICAÇÃO DE TIPO DE TREINO
+// ══════════════════════════════════════════
+
+// Returns {type, subtype, confidence, detail}
+// Priority: B1 > B2 > C > A
+function classifyRun(run) {
+  const splits = gpxSplits[run.id] || [];
+  const pts = gpxPoints[run.id] || [];
+
+  // ── B1: Séries ──────────────────────────────────────────────
+  // 50m windows tagged F(<4:30/km) S(>6:10/km) or N, RLE-compressed.
+  // Calibrated on 4 real sessions: fastRuns≥3, slowRuns≥3, alts≥6.
+  if (pts.length > 10) {
+    const WIN = 0.05, FAST = 270, SLOW = 340; // FAST<4:30/km, SLOW>5:40/km
+    const win50 = [];
+    let i = 0;
+    while (i < pts.length - 1) {
+      const startDist = pts[i].dist;
+      const endTarget = startDist + WIN;
+      if (endTarget > pts[pts.length-1].dist) break;
+      let j = i;
+      while (j < pts.length - 1 && pts[j+1].dist < endTarget) j++;
+      if (j >= pts.length - 1) break;
+      const frac = (endTarget - pts[j].dist) / Math.max(pts[j+1].dist - pts[j].dist, 0.0001);
+      const tEnd = pts[j].t + frac * (pts[j+1].t - pts[j].t);
+      const secs = (tEnd - pts[i].t) / 1000;
+      const paceKm = secs / WIN;
+      if (secs > 3 && secs < 90) win50.push(paceKm);
+      while (i < pts.length - 1 && pts[i].dist < startDist + WIN) i++;
+    }
+    const rlRuns = [];
+    for (const pace of win50) {
+      const tag = pace < FAST ? 'F' : pace > SLOW ? 'S' : null;
+      if (!tag) continue;
+      if (!rlRuns.length || rlRuns[rlRuns.length-1][0] !== tag) rlRuns.push([tag, 1]);
+      else rlRuns[rlRuns.length-1][1]++;
+    }
+    const fastRuns = rlRuns.filter(r => r[0]==='F').length;
+    const slowRuns = rlRuns.filter(r => r[0]==='S').length;
+    const alts = rlRuns.filter((r,ri) => ri > 0 && r[0] !== rlRuns[ri-1][0]).length;
+    // Only count fast blocks that are true series:
+    // - must be followed by a slow recovery (not trailing cooldown)
+    // - fast block must be ≥2 windows (100m) — filters out single 50m pace blips
+    const trueSeriesCount = rlRuns.filter((r, ri) =>
+      r[0] === 'F' && r[1] >= 2 && ri < rlRuns.length - 1 && rlRuns[ri+1][0] === 'S'
+    ).length;
+    if (fastRuns >= 1) console.log(`B1 check ${run.name}: fastRuns=${fastRuns} slowRuns=${slowRuns} alts=${alts} series=${trueSeriesCount} → PASS=${trueSeriesCount >= 5 && slowRuns >= 4 && alts >= 8}`);
+    if (trueSeriesCount >= 5 && slowRuns >= 4 && alts >= 8) {
+      return { type: 'B1', subtype: 'Séries', confidence: 'gpx',
+        detail: `${trueSeriesCount} séries detectadas` };
+    }
+  }
+
+  // B1 fallback via km splits (sem gpxPoints)
+  if (splits.length >= 4 && pts.length === 0) {
+    const mean = splits.reduce((a,b)=>a+b,0) / splits.length;
+    const cv = Math.sqrt(splits.reduce((a,s)=>a+Math.pow(s-mean,2),0)/splits.length) / mean;
+    const hasFast = splits.some(s => s < 260);
+    const hasSlow = splits.some(s => s > 350);
+    if (cv > 0.10 && hasFast && hasSlow) {
+      return { type: 'B1', subtype: 'Séries', confidence: 'splits',
+        detail: 'detectado por variância de splits (precisão limitada)' };
+    }
+  }
+
+  // ── B2: Limiar ───────────────────────────────────────────────
+  // Aquecimento (primeiros 2 splits) + queda abrupta ≥ 20s/km a partir do km 3
+  // bloco principal sustentado (baixa variância), avg < 5:15/km
+  if (splits.length >= 5) {
+    const warmup = splits.slice(0, 2);
+    const main = splits.slice(2);
+    const warmupAvg = warmup.reduce((a,b)=>a+b,0) / warmup.length;
+    const mainAvg = main.reduce((a,b)=>a+b,0) / main.length;
+    const mainStd = Math.sqrt(main.reduce((a,s)=>a+Math.pow(s-mainAvg,2),0)/main.length);
+    const drop = warmupAvg - mainAvg; // positive = got faster
+    if (drop >= 20 && mainAvg < 315 && mainStd < 25) { // drop ≥20s, avg<5:15, consistent
+      return { type: 'B2', subtype: 'Limiar', confidence: 'splits',
+        detail: `aquecimento ${fmtPace(warmupAvg,1)}/km → limiar ${fmtPace(mainAvg,1)}/km` };
+    }
+  }
+
+  // ── C: Longo ─────────────────────────────────────────────────
+  if (run.dist >= 8.5) {
+    return { type: 'C', subtype: 'Longo', confidence: 'dist',
+      detail: `${run.dist.toFixed(1)} km` };
+  }
+
+  // ── A: Contínuo ──────────────────────────────────────────────
+  // Subtype: progressivo se última metade > 15s/km mais rápida que primeira
+  if (splits.length >= 4) {
+    const half = Math.floor(splits.length / 2);
+    const firstHalf = splits.slice(0, half).reduce((a,b)=>a+b,0) / half;
+    const secondHalf = splits.slice(half).reduce((a,b)=>a+b,0) / (splits.length - half);
+    if (firstHalf - secondHalf > 15) {
+      return { type: 'A', subtype: 'Progressivo', confidence: 'splits',
+        detail: `acelerou ${Math.round(firstHalf-secondHalf)}s/km na 2ª metade` };
+    }
+  }
+  return { type: 'A', subtype: 'Contínuo', confidence: run.dist ? 'dist' : 'default', detail: '' };
+}
+
+const TYPE_COLORS = { B1:'#ff6b35', B2:'#f59e0b', C:'#60a5fa', A:'#4ade80' };
+const TYPE_DESC = { B1:'Séries', B2:'Limiar', C:'Longo', A:'Contínuo' };
+
+let treinoFilter = 'all';
+
+function filterTreinos(type, btn) {
+  treinoFilter = type;
+  document.querySelectorAll('#treino-type-chips .filter-chip').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTreinos(type);
+}
+
+function renderTreinos(filter) {
+  // Classify all runs
+  const ptKeys = Object.keys(gpxPoints);
+  console.log(`renderTreinos: ${runs.length} corridas, gpxPoints keys: ${ptKeys.length} → [${ptKeys.slice(0,5).join(',')}...]`);
+  const classified = runs.map(r => ({ run: r, ...classifyRun(r) }));
+
+  // Summary cards
+  const counts = { B1:0, B2:0, C:0, A:0 };
+  classified.forEach(c => { counts[c.type]++; if(c.type==='B1') console.log('counted B1:', c.run.name); });
+  console.log('final counts:', JSON.stringify(counts));
+  const total = classified.length;
+
+  document.getElementById('treino-summary').innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
+      ${['B1','B2','C','A'].map(t => `
+        <div style="background:var(--surface2);border-radius:10px;padding:10px 8px;text-align:center;border-left:3px solid ${TYPE_COLORS[t]}">
+          <div style="font-family:var(--font-display);font-size:11px;font-weight:800;color:${TYPE_COLORS[t]}">${t}</div>
+          <div style="font-family:var(--font-display);font-size:20px;font-weight:800;margin:2px 0">${counts[t]}</div>
+          <div style="font-size:9px;color:var(--muted)">${total ? Math.round(counts[t]/total*100) : 0}%</div>
+        </div>`).join('')}
+    </div>`;
+
+  // Alert: semanas sem B1 ou B2
+  const alertEl = document.getElementById('treino-alert');
+  const hasGpxPoints = Object.keys(gpxPoints).length > 0;
+  const recentB1B2 = classified.filter(c => (c.type==='B1'||c.type==='B2') &&
+    (Date.now() - new Date(c.run.date).getTime()) < 28*86400000);
+  if (!hasGpxPoints && Object.keys(gpxSplits).length === 0) {
+    alertEl.style.display = '';
+    alertEl.textContent = '⚠️ Sem ficheiros GPX importados — importa os GPX para classificar os treinos correctamente.';
+  } else if (!hasGpxPoints) {
+    alertEl.style.display = '';
+    alertEl.textContent = '⚠️ GPX importados sem pontos densos — re-importa os ficheiros GPX para activar a detecção de séries B1.';
+  } else if (recentB1B2.length === 0 && total > 5) {
+    alertEl.style.display = '';
+    alertEl.textContent = '⚠️ Nenhum treino B1 ou B2 nas últimas 4 semanas — considera adicionar variação.';
+  } else { alertEl.style.display = 'none'; }
+
+  // Filtered list
+  const toShow = filter === 'all' ? classified : classified.filter(c => c.type === filter);
+  const listEl = document.getElementById('treino-list');
+
+  if (!toShow.length) {
+    listEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Sem corridas deste tipo.</div>';
+    return;
+  }
+
+  listEl.innerHTML = toShow.map(c => {
+    const r = c.run;
+    const color = TYPE_COLORS[c.type];
+    const hasGpx = !!gpxSplits[r.id];
+    const confIcon = c.confidence === 'gpx' ? '●' : c.confidence === 'splits' ? '◑' : '○';
+    const confTitle = c.confidence === 'gpx' ? 'classificado por GPS denso' :
+                      c.confidence === 'splits' ? 'classificado por splits de km' : 'classificado por distância';
+    return `
+    <div onclick="openRunModal('${r.id}')" style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--border);cursor:pointer;active:background:var(--surface2)">
+      <div style="width:36px;height:36px;border-radius:10px;background:${color}22;border:2px solid ${color};display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <span style="font-family:var(--font-display);font-size:12px;font-weight:800;color:${color}">${c.type}</span>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.name}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:1px">${c.subtype}${c.detail ? ' · ' + c.detail : ''}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-family:var(--font-mono);font-size:12px">${fmtDate(r.date)}</div>
+        <div style="font-size:11px;color:var(--muted)">${r.dist.toFixed(1)} km · ${fmtPace(r.secs,r.dist)}/km</div>
+      </div>
+      <div title="${confTitle}" style="font-size:10px;color:${c.confidence==='gpx'?'var(--accent)':c.confidence==='splits'?'var(--muted)':'rgba(107,107,128,.4)'};flex-shrink:0">${confIcon}</div>
+    </div>`;
+  }).join('');
+}
+
+
+// Debug: call debugTreinos() in browser console to see splits of B1 candidate runs
+function debugTreinos() {
+  const targets = ['2026-03-05','2026-02-21','2026-02-08','2026-01-23'];
+  targets.forEach(datePrefix => {
+    const run = runs.find(r => r.date.startsWith(datePrefix));
+    if (!run) { console.log(`${datePrefix}: NOT FOUND`); return; }
+    const splits = gpxSplits[run.id] || [];
+    const pts = gpxPoints[run.id] || [];
+    console.group(`${run.name} — ${datePrefix} (${run.dist.toFixed(1)}km)`);
+    console.log('splits/km (sec):', splits.map((s,i)=>`km${i+1}:${s}s(${Math.floor(s/60)}:${String(s%60).padStart(2,'0')})`).join(' '));
+    if (pts.length) {
+      // Build 400m windows
+      const WIN=0.4; const win400=[];
+      for(let i=0;i<pts.length-1;i++){
+        const endT=pts[i].dist+WIN;
+        if(endT>pts[pts.length-1].dist)break;
+        let j=i;
+        while(j<pts.length-1&&pts[j+1].dist<endT)j++;
+        if(j>=pts.length-1)break;
+        const frac=(endT-pts[j].dist)/Math.max(pts[j+1].dist-pts[j].dist,0.0001);
+        const tEnd=pts[j].t+frac*(pts[j+1].t-pts[j].t);
+        const secs=(tEnd-pts[i].t)/1000;
+        if(secs>10&&secs<600)win400.push({secs:Math.round(secs),dist:pts[i].dist.toFixed(2)});
+      }
+      console.log('400m windows (sec):', win400.map(w=>`@${w.dist}km:${w.secs}s`).join(' '));
+      const fast=win400.filter(w=>w.secs<104).length;
+      const slow=win400.filter(w=>w.secs>140).length;
+      let trans=0;
+      for(let i=1;i<win400.length;i++){
+        const p=win400[i-1].secs,c=win400[i].secs;
+        if((p<104&&c>140)||(p>140&&c<104))trans++;
+      }
+      console.log(`fast(<104s)=${fast} slow(>140s)=${slow} transitions=${trans}`);
+    } else {
+      console.log('No dense GPS points — only km splits available');
+      // km split analysis
+      const mean=splits.reduce((a,b)=>a+b,0)/splits.length;
+      const cv=Math.sqrt(splits.reduce((a,s)=>a+Math.pow(s-mean,2),0)/splits.length)/mean;
+      const hasFast=splits.some(s=>s<260);const hasSlow=splits.some(s=>s>350);
+      console.log(`mean=${Math.round(mean)}s cv=${(cv*100).toFixed(1)}% hasFast(<260s)=${hasFast} hasSlow(>350s)=${hasSlow}`);
+    }
+    console.groupEnd();
+  });
+}
+
+function renderPaceDistribution() {
+  const buckets = {'< 4:30':0,'4:30–5:00':0,'5:00–5:30':0,'5:30–6:00':0,'6:00–7:00':0,'> 7:00':0};
+  runs.forEach(r => {
+    if (!r.secs || !r.dist) return;
+    const spk = r.secs / r.dist;
+    if (spk < 270) buckets['< 4:30']++;
+    else if (spk < 300) buckets['4:30–5:00']++;
+    else if (spk < 330) buckets['5:00–5:30']++;
+    else if (spk < 360) buckets['5:30–6:00']++;
+    else if (spk < 420) buckets['6:00–7:00']++;
+    else buckets['> 7:00']++;
+  });
+  const max = Math.max(...Object.values(buckets), 1);
+  document.getElementById('pace-distribution').innerHTML = Object.entries(buckets).map(([label, cnt]) => `
+    <div class="pace-bar-row">
+      <div class="pace-bar-label">${label}</div>
+      <div class="pace-bar-track">
+        <div class="pace-bar-fill" style="width:${(cnt/max*100).toFixed(1)}%">
+          ${cnt > 0 ? `<span class="pace-bar-val">${cnt}</span>` : ''}
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderPaceChart() {
+  const recent = runs.slice(0,40).reverse();
+  const labels = recent.map(r => new Date(r.date).toLocaleDateString('pt-PT',{day:'2-digit',month:'2-digit'}));
+  const paces = recent.map(r => r.secs && r.dist ? +(r.secs/r.dist/60).toFixed(2) : null);
+  const ctx = document.getElementById('pace-chart').getContext('2d');
+  if (paceChartInst) paceChartInst.destroy();
+  paceChartInst = drawLineChart(ctx, labels, paces, '#ff6b35');
+}
+
+function renderScatter() {
+  const ctx = document.getElementById('scatter-chart').getContext('2d');
+  if (scatterChartInst) scatterChartInst.destroy();
+  const pts = runs.filter(r => r.secs && r.dist).map(r => ({x: r.dist, y: +(r.secs/r.dist/60).toFixed(2)}));
+  const canvas = document.getElementById('scatter-chart');
+  const w = canvas.offsetWidth || 300, h = 160;
+  canvas.width = w * window.devicePixelRatio;
+  canvas.height = h * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  const pad = {l:32,r:12,t:10,b:28};
+  const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
+  const xMin = Math.min(...xs,0), xMax = Math.max(...xs,20);
+  const yMin = Math.min(...ys,3), yMax = Math.max(...ys,8);
+  const sx = v => pad.l + (v-xMin)/(xMax-xMin)*(w-pad.l-pad.r);
+  const sy = v => pad.t + (1-(v-yMin)/(yMax-yMin))*(h-pad.t-pad.b);
+  ctx.fillStyle = 'transparent';
+  ctx.fillRect(0,0,w,h);
+  // grid
+  ctx.strokeStyle = 'rgba(255,255,255,.08)'; ctx.lineWidth = 1;
+  [0,5,10,15,20].forEach(x => { ctx.beginPath(); ctx.moveTo(sx(x),pad.t); ctx.lineTo(sx(x),h-pad.b); ctx.stroke(); });
+  [4,5,6,7].forEach(y => { ctx.beginPath(); ctx.moveTo(pad.l,sy(y)); ctx.lineTo(w-pad.r,sy(y)); ctx.stroke(); });
+  // labels
+  ctx.fillStyle = 'rgba(107,107,128,.8)'; ctx.font = '10px DM Mono, monospace'; ctx.textAlign = 'center';
+  [0,5,10,15,20].forEach(x => ctx.fillText(x+'km', sx(x), h-8));
+  ctx.textAlign = 'right';
+  [4,5,6,7].forEach(y => ctx.fillText(y+':00', pad.l-4, sy(y)+4));
+  // dots
+  pts.forEach(pt => {
+    ctx.beginPath();
+    ctx.arc(sx(pt.x), sy(pt.y), 4, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(255,107,53,.7)'; ctx.fill();
+  });
+}
+
+function renderMonthlyList() {
+  const monthMap = {};
+  runs.forEach(r => {
+    const d = new Date(r.date);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    if (!monthMap[key]) monthMap[key] = {km:0, secs:0, count:0, year:d.getFullYear(), month:d.getMonth()};
+    monthMap[key].km += r.dist; monthMap[key].secs += r.secs; monthMap[key].count++;
+  });
+  const months = Object.keys(monthMap).sort().reverse();
+  document.getElementById('monthly-list').innerHTML = months.map(key => {
+    const m = monthMap[key];
+    const name = new Date(m.year, m.month).toLocaleDateString('pt-PT',{month:'long',year:'numeric'});
+    const abbr = new Date(m.year, m.month).toLocaleDateString('pt-PT',{month:'short'}).slice(0,3).toUpperCase();
+    return `<div class="monthly-row">
+      <div class="monthly-month">${abbr}</div>
+      <div class="monthly-info">
+        <div class="monthly-name">${name}</div>
+        <div class="monthly-meta">${m.count} corrida${m.count!==1?'s':''} · ritmo ${fmtPace(m.secs,m.km)}/km</div>
+      </div>
+      <div class="monthly-km">${Math.round(m.km)}<span style="font-size:12px;color:var(--muted);font-weight:400">km</span></div>
+    </div>`;
+  }).join('');
+}
+
+// Find best N consecutive km splits across all runs (sliding window)
+// Returns { secs, runId, startKm } or null
+function bestSlidingWindow(targetKm) {
+  let best = null;
+
+  Object.entries(gpxSplits).forEach(([id, splits]) => {
+    if (splits.length < targetKm) return;
+    // Sliding window of targetKm splits
+    // First window sum
+    let windowSum = 0;
+    for (let i = 0; i < targetKm; i++) windowSum += splits[i];
+    if (!best || windowSum < best.secs) best = { secs: windowSum, runId: id, startKm: 1 };
+    // Slide
+    for (let i = targetKm; i < splits.length; i++) {
+      windowSum += splits[i] - splits[i - targetKm];
+      if (windowSum < best.secs) best = { secs: windowSum, runId: id, startKm: i - targetKm + 2 };
+    }
+  });
+
+  return best;
+}
+
+function debugPBs() {
+  let html = '<div style="padding:16px 20px;font-size:11px;font-family:var(--font-mono)">';
+  html += `<div style="color:var(--accent);margin-bottom:8px">Total corridas: ${runs.length} | Corridas com GPX splits: ${Object.keys(gpxSplits).length}</div>`;
+
+  Object.entries(gpxSplits).forEach(([id, splits]) => {
+    const run = runs.find(r => r.id === id);
+    const name = run ? run.name : id;
+    const date = run ? fmtDate(run.date) : '?';
+    html += `<div style="margin-bottom:12px;border:1px solid var(--border);padding:8px;border-radius:6px">`;
+    html += `<div style="color:var(--text);font-weight:bold">${name} — ${date}</div>`;
+    html += `<div style="color:var(--muted)">${splits.length} splits | dist: ${run?.dist?.toFixed(1)}km</div>`;
+    html += `<div style="color:var(--accent2);margin-top:4px">splits (seg/km): ${splits.map((s,i) => `km${i+1}:${fmtTime(s)}`).join(' · ')}</div>`;
+
+    // Show best 5km window
+    if (splits.length >= 5) {
+      let best5 = { secs: Infinity, start: 1 };
+      let ws = splits.slice(0,5).reduce((a,b)=>a+b,0);
+      if (ws < best5.secs) best5 = { secs: ws, start: 1 };
+      for (let i = 5; i < splits.length; i++) {
+        ws += splits[i] - splits[i-5];
+        if (ws < best5.secs) best5 = { secs: ws, start: i-3 };
+      }
+      html += `<div style="color:var(--success);margin-top:2px">melhor 5km: ${fmtTime(best5.secs)} (km${best5.start}→${best5.start+4})</div>`;
+    } else {
+      html += `<div style="color:var(--muted);margin-top:2px">insuficiente para 5km (só ${splits.length} splits)</div>`;
+    }
+    html += `</div>`;
+  });
+
+  if (!Object.keys(gpxSplits).length) {
+    html += '<div style="color:var(--accent2)">⚠️ Nenhum GPX com splits encontrado! Os dados podem não estar carregados nesta sessão.<br>Importa os ficheiros GPX novamente.</div>';
+  }
+
+  html += '</div>';
+  html += `<div style="padding:0 20px 16px"><button onclick="renderPBs()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 16px;border-radius:8px;font-size:12px;cursor:pointer">← Voltar aos records</button></div>`;
+  document.getElementById('pb-list').innerHTML = html;
+}
+
+// Find best N consecutive km using dense GPS points (sub-split precision)
+// Uses sliding two-pointer over timed points to find fastest window of exactly targetKm
+function bestSubSplitWindow(id, targetKm) {
+  const pts = gpxPoints[id];
+  if (!pts || pts.length < 2) return null;
+  const totalDist = pts[pts.length - 1].dist;
+  if (totalDist < targetKm * 0.998) return null; // 0.2% tolerance for GPS rounding only
+
+  // For each start point, find the point exactly targetKm ahead using interpolation
+  let bestSecs = null, bestStartDist = null;
+  let j = 0; // right pointer
+
+  for (let i = 0; i < pts.length - 1; i++) {
+    const startDist = pts[i].dist;
+    const endTarget = startDist + targetKm;
+    if (endTarget > totalDist) break;
+
+    // Advance j to find the two points bracketing endTarget
+    while (j < pts.length - 1 && pts[j + 1].dist < endTarget) j++;
+    if (j >= pts.length - 1) break;
+
+    // Interpolate time at exact endTarget distance
+    const p0 = pts[j], p1 = pts[j + 1];
+    const frac = (endTarget - p0.dist) / Math.max(p1.dist - p0.dist, 0.0001);
+    const tEnd = p0.t + frac * (p1.t - p0.t);
+    const secs = Math.round((tEnd - pts[i].t) / 1000);
+
+    if (secs > 30 && secs < targetKm * 1800) { // sanity: >30s and <30min/km
+      if (bestSecs === null || secs < bestSecs) {
+        bestSecs = secs;
+        bestStartDist = startDist;
+      }
+    }
+  }
+
+  if (bestSecs === null) return null;
+  return { secs: bestSecs, startKm: Math.floor(bestStartDist) + 1 };
+}
+
+function renderPBs() {
+  const targets = [
+    { label: '1 km',       km: 1  },
+    { label: '5 km',       km: 5  },
+    { label: '10 km',      km: 10 },
+    { label: '½ Maratona', km: 21 },
+    { label: 'Maratona',   km: 42 },
+  ];
+
+  const medals = ['🥇', '🥈', '🥉'];
+  let html = '';
+
+  targets.forEach(t => {
+    const effortsByRun = {};
+
+    const minSplits = t.km === 1 ? 1 : t.km;
+
+    Object.entries(gpxSplits).forEach(([id, splits]) => {
+      // Use sub-split precision if dense points available
+      if (gpxPoints[id]) {
+        const result = bestSubSplitWindow(id, t.km);
+        if (result) { effortsByRun[id] = result; return; }
+      }
+      // Fallback: split-level sliding window
+      if (splits.length < minSplits) return;
+      let windowSum = 0;
+      for (let i = 0; i < t.km; i++) windowSum += splits[i];
+      let bestForRun = { secs: windowSum, startKm: 1 };
+      for (let i = t.km; i < splits.length; i++) {
+        windowSum += splits[i] - splits[i - t.km];
+        if (windowSum < bestForRun.secs) bestForRun = { secs: windowSum, startKm: i - t.km + 2 };
+      }
+      if (t.km === 1) {
+        let best1 = splits[0], bestIdx = 0;
+        splits.forEach((s, i) => { if (s < best1) { best1 = s; bestIdx = i; } });
+        bestForRun = { secs: best1, startKm: bestIdx + 1 };
+      }
+      effortsByRun[id] = bestForRun;
+    });
+
+    // Inject official race results from RACE_OVERRIDES when dist matches target
+    for (const ov of RACE_OVERRIDES) {
+      if (!ov.secs || !ov.dist) continue;
+      if (Math.abs(ov.dist - t.km) > 0.1) continue; // only inject for matching distance
+      const run = runs.find(r => r.date.startsWith(ov.date));
+      if (run && !effortsByRun[run.id]) {
+        effortsByRun[run.id] = { secs: ov.secs, startKm: 1, official: true };
+      }
+    }
+
+    // GPX only — no CSV fallback. Records only count if we have real split data.
+    if (!Object.keys(effortsByRun).length) return;
+
+    const top3 = Object.entries(effortsByRun)
+      .map(([id, e]) => ({ id, ...e }))
+      .sort((a, b) => a.secs - b.secs)
+      .slice(0, 3);
+
+    html += `<div style="margin-bottom:28px">
+      <div style="display:flex;align-items:center;padding:0 20px 10px;gap:8px">
+        <div style="font-family:var(--font-display);font-size:13px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)">${t.label}</div>
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+      </div>`;
+
+    top3.forEach((e, i) => {
+      const run = runs.find(r => r.id === e.id);
+      if (!run) return;
+      const segInfo = e.official
+        ? `<span style="font-size:10px;color:var(--accent2);margin-left:6px">oficial</span>`
+        : (e.startKm != null && t.km > 1)
+        ? `<span style="font-size:10px;color:var(--accent2);margin-left:6px">km ${e.startKm}→${e.startKm + t.km - 1}</span>`
+        : (e.startKm != null && t.km === 1)
+        ? `<span style="font-size:10px;color:var(--accent2);margin-left:6px">km ${e.startKm}</span>`
+        : '';
+      const paceStr = fmtPace(e.secs, t.km);
+      html += `
+      <div class="pb-item" onclick="openRunModal('${e.id}')">
+        <div class="pb-medal">${medals[i] || ''}</div>
+        <div class="pb-info">
+          <div class="pb-dist" style="font-size:13px;display:flex;align-items:center;flex-wrap:wrap">
+            ${run.name}${segInfo}
+          </div>
+          <div class="pb-date">${fmtDate(run.date)} · ${paceStr}/km</div>
+        </div>
+        <div style="text-align:right">
+          <div class="pb-time">${fmtTime(Math.round(e.secs))}</div>
+          <div style="font-size:10px;color:var(--muted)">ver →</div>
+        </div>
+      </div>`;
+    });
+
+    html += `</div>`;
+  });
+
+  document.getElementById('pb-list').innerHTML = html ||
+    '<div style="padding:20px;color:var(--muted);font-size:13px;text-align:center">Sem dados GPX suficientes.<br><br>Importa ficheiros GPX para calcular os teus records reais.</div>';
+}
+
+// ══════════════════════════════════════════
+//  MAP
+// ══════════════════════════════════════════
+let mapSelectedIds = new Set();
+
+function initMap() {
+  const gpxRuns = runs.filter(r => gpxRoutes[r.id]);
+  const mapData = document.getElementById('map-data');
+  const mapEmpty = document.getElementById('map-empty');
+
+  if (!gpxRuns.length) {
+    mapData.style.display = 'none';
+    mapEmpty.style.display = '';
+    return;
+  }
+  mapData.style.display = '';
+  mapEmpty.style.display = 'none';
+  document.getElementById('map-subtitle').textContent = `${gpxRuns.length} rota${gpxRuns.length!==1?'s':''} com GPS`;
+
+  // Build checklist
+  if (!mapSelectedIds.size) gpxRuns.forEach(r => mapSelectedIds.add(r.id));
+
+  const colors = ['#e8ff47','#ff6b35','#60a5fa','#4ade80','#f472b6','#fb923c','#a78bfa','#34d399'];
+  const colorMap = {};
+  gpxRuns.forEach((r, i) => { colorMap[r.id] = colors[i % colors.length]; });
+
+  const cl = document.getElementById('map-run-checklist');
+  cl.innerHTML = gpxRuns.map(r => `
+    <label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;background:var(--surface2);border:1px solid var(--border)">
+      <input type="checkbox" data-id="${r.id}" ${mapSelectedIds.has(r.id)?'checked':''} onchange="mapToggleRun('${r.id}',this.checked)"
+        style="accent-color:${colorMap[r.id]};width:14px;height:14px;flex-shrink:0">
+      <span style="width:10px;height:10px;border-radius:50%;background:${colorMap[r.id]};flex-shrink:0"></span>
+      <span style="font-size:11px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name}</span>
+      <span style="font-size:10px;color:var(--muted);flex-shrink:0">${r.dist.toFixed(1)}km</span>
+    </label>`).join('');
+
+  if (!leafletMap) {
+    leafletMap = L.map('leaflet-map', {zoomControl:false, attributionControl:false});
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:18}).addTo(leafletMap);
+    L.control.zoom({position:'bottomright'}).addTo(leafletMap);
+  }
+  redrawMapRoutes(colorMap);
+}
+
+function mapToggleRun(id, checked) {
+  if (checked) mapSelectedIds.add(id);
+  else mapSelectedIds.delete(id);
+  const gpxRuns = runs.filter(r => gpxRoutes[r.id]);
+  const colors = ['#e8ff47','#ff6b35','#60a5fa','#4ade80','#f472b6','#fb923c','#a78bfa','#34d399'];
+  const colorMap = {};
+  gpxRuns.forEach((r, i) => { colorMap[r.id] = colors[i % colors.length]; });
+  redrawMapRoutes(colorMap);
+}
+
+function mapSelectAll(select) {
+  const gpxRuns = runs.filter(r => gpxRoutes[r.id]);
+  if (select) gpxRuns.forEach(r => mapSelectedIds.add(r.id));
+  else mapSelectedIds.clear();
+  // Update checkboxes
+  document.querySelectorAll('#map-run-checklist input[type=checkbox]').forEach(cb => {
+    cb.checked = select;
+  });
+  const colors = ['#e8ff47','#ff6b35','#60a5fa','#4ade80','#f472b6','#fb923c','#a78bfa','#34d399'];
+  const colorMap = {};
+  gpxRuns.forEach((r, i) => { colorMap[r.id] = colors[i % colors.length]; });
+  redrawMapRoutes(colorMap);
+}
+
+function redrawMapRoutes(colorMap) {
+  if (!leafletMap) return;
+  mapLayers.forEach(l => leafletMap.removeLayer(l));
+  mapLayers = [];
+  document.getElementById('map-run-stats').style.display = 'none';
+
+  const bounds = [];
+  const selected = runs.filter(r => gpxRoutes[r.id] && mapSelectedIds.has(r.id));
+
+  selected.forEach(r => {
+    const coords = gpxRoutes[r.id];
+    const color = colorMap[r.id] || '#e8ff47';
+    const isSingle = selected.length === 1;
+    const weight = isSingle ? 3 : 2;
+    const line = L.polyline(coords, {color, weight, opacity: isSingle ? 1 : 0.75}).addTo(leafletMap);
+    mapLayers.push(line);
+    if (isSingle) {
+      const start = L.circleMarker(coords[0], {radius:6, color, fillColor:color, fillOpacity:1}).addTo(leafletMap);
+      const end = L.circleMarker(coords[coords.length-1], {radius:6, color:'#ff6b35', fillColor:'#ff6b35', fillOpacity:1}).addTo(leafletMap);
+      mapLayers.push(start, end);
+      document.getElementById('map-run-stats').style.display = '';
+      document.getElementById('map-run-name').textContent = r.name;
+      document.getElementById('map-run-dist').textContent = r.dist.toFixed(2) + ' km';
+      document.getElementById('map-run-time').textContent = fmtTime(r.secs);
+      document.getElementById('map-run-pace').textContent = fmtPace(r.secs, r.dist) + '/km';
+    }
+    bounds.push(...coords);
+  });
+
+  if (bounds.length) {
+    try { leafletMap.fitBounds(L.latLngBounds(bounds), {padding:[16,16]}); } catch(e){}
+  }
+}
+
+// ══════════════════════════════════════════
+//  CANVAS CHARTS
+// ══════════════════════════════════════════
+function drawBarChart(ctx, labels, values, color) {
+  const canvas = ctx.canvas;
+  const w = canvas.offsetWidth || 300, h = 160;
+  canvas.width = w * window.devicePixelRatio;
+  canvas.height = h * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  canvas.style.width = w+'px'; canvas.style.height = h+'px';
+
+  const pad = {l:36, r:12, t:12, b:28};
+  const maxV = Math.max(...values, 1);
+
+  ctx.clearRect(0, 0, w, h);
+
+  const barW = (w - pad.l - pad.r) / labels.length * 0.7;
+  const gap = (w - pad.l - pad.r) / labels.length;
+
+  labels.forEach((lbl, i) => {
+    const x = pad.l + i * gap + gap * 0.15;
+    const barH = (values[i] / maxV) * (h - pad.t - pad.b);
+    const y = h - pad.b - barH;
+
+    const grad = ctx.createLinearGradient(0, y, 0, h-pad.b);
+    grad.addColorStop(0, color);
+    grad.addColorStop(1, color + '44');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.roundRect(x, y, barW, barH, [3,3,0,0]);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(107,107,128,.8)';
+    ctx.font = '9px DM Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(lbl, x + barW/2, h - 8);
+  });
+
+  // Y axis labels
+  ctx.fillStyle = 'rgba(107,107,128,.8)';
+  ctx.font = '9px DM Mono, monospace';
+  ctx.textAlign = 'right';
+  [0, Math.round(maxV/2), maxV].forEach(v => {
+    const y = h - pad.b - (v/maxV)*(h-pad.t-pad.b);
+    ctx.fillText(v, pad.l-4, y+3);
+    ctx.strokeStyle = 'rgba(255,255,255,.06)';
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w-pad.r, y); ctx.stroke();
+  });
+
+  return { destroy: () => {} };
+}
+
+function drawLineChart(ctx, labels, values, color) {
+  const canvas = ctx.canvas;
+  const w = canvas.offsetWidth || 300, h = 160;
+  canvas.width = w * window.devicePixelRatio;
+  canvas.height = h * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  canvas.style.width = w+'px'; canvas.style.height = h+'px';
+
+  const pad = {l:36, r:12, t:12, b:28};
+  const valid = values.filter(v => v !== null);
+  const minV = Math.min(...valid) * 0.97, maxV = Math.max(...valid) * 1.03;
+  const sx = i => pad.l + i / (labels.length - 1) * (w - pad.l - pad.r);
+  const sy = v => pad.t + (1-(v-minV)/(maxV-minV))*(h-pad.t-pad.b);
+
+  ctx.clearRect(0,0,w,h);
+
+  // grid
+  ctx.strokeStyle = 'rgba(255,255,255,.06)'; ctx.lineWidth = 1;
+  [0,.5,1].forEach(t => { const y = pad.t + t*(h-pad.t-pad.b); ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(w-pad.r,y); ctx.stroke(); });
+
+  // gradient fill
+  const grad = ctx.createLinearGradient(0, pad.t, 0, h-pad.b);
+  grad.addColorStop(0, color+'55'); grad.addColorStop(1, 'transparent');
+  ctx.beginPath();
+  let first = true;
+  values.forEach((v,i) => {
+    if (v === null) return;
+    if (first) { ctx.moveTo(sx(i), sy(v)); first = false; }
+    else ctx.lineTo(sx(i), sy(v));
+  });
+  ctx.lineTo(sx(values.length-1), h-pad.b);
+  ctx.lineTo(sx(0), h-pad.b);
+  ctx.closePath(); ctx.fillStyle = grad; ctx.fill();
+
+  // line
+  ctx.beginPath(); first = true;
+  ctx.strokeStyle = color; ctx.lineWidth = 2;
+  values.forEach((v,i) => {
+    if (v === null) return;
+    if (first) { ctx.moveTo(sx(i), sy(v)); first = false; }
+    else ctx.lineTo(sx(i), sy(v));
+  });
+  ctx.stroke();
+
+  // dots
+  values.forEach((v,i) => {
+    if (v === null) return;
+    ctx.beginPath(); ctx.arc(sx(i), sy(v), 3, 0, Math.PI*2);
+    ctx.fillStyle = color; ctx.fill();
+  });
+
+  // y labels
+  ctx.fillStyle = 'rgba(107,107,128,.8)'; ctx.font = '9px DM Mono, monospace'; ctx.textAlign = 'right';
+  const fmt = v => { const m=Math.floor(v), s=Math.round((v-m)*60); return `${m}:${String(s).padStart(2,'0')}`; };
+  [minV, (minV+maxV)/2, maxV].forEach(v => ctx.fillText(fmt(v), pad.l-4, sy(v)+3));
+
+  // x labels (sparse)
+  ctx.fillStyle = 'rgba(107,107,128,.8)'; ctx.textAlign = 'center';
+  const step = Math.ceil(labels.length / 5);
+  labels.forEach((l,i) => { if (i % step === 0) ctx.fillText(l, sx(i), h-8); });
+
+  return { destroy: () => {} };
+}
+
+// ══════════════════════════════════════════
+//  UTILS
+// ══════════════════════════════════════════
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+async function clearAllData() {
+  if (!confirm('Eliminar todos os dados? Esta acção é irreversível.')) return;
+  runs = []; gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
+  // Clear IndexedDB cache
+  try { await Promise.all([dbSet('runs',[]),dbSet('gpxRoutes',{}),dbSet('gpxSplits',{}),dbSet('gpxPoints',{})]); } catch(e){}
+  // Clear Supabase
+  if (currentUser) {
+    try {
+      await Promise.all([
+        supa.from('runs').delete().eq('user_id', currentUser.id),
+        supa.from('gpx_data').delete().eq('user_id', currentUser.id),
+      ]);
+    } catch(e) { console.warn('Supabase clear error:', e); }
+  }
+  renderAll();
+  showToast('Dados eliminados');
+}
+
+// ══════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════
+// Init: show login screen while auth state is determined
+// onAuthStateChange above will handle load() + renderAll() once session is confirmed
+showLoginScreen();
+
+// ── PWA: Service Worker (inline via blob) ──
+if ('serviceWorker' in navigator) {
+  const swCode = `
+    const CACHE = 'pace-v1';
+    const ASSETS = []; // single-file app — no external assets to precache
+    self.addEventListener('install', e => self.skipWaiting());
+    self.addEventListener('activate', e => clients.claim());
+    self.addEventListener('fetch', e => {
+      // Cache-first for same-origin, network-first for external (fonts, maps)
+      if (e.request.url.startsWith(self.location.origin)) {
+        e.respondWith(
+          caches.open(CACHE).then(c => c.match(e.request).then(r => r || fetch(e.request).then(res => {
+            c.put(e.request, res.clone()); return res;
+          })))
+        );
+      }
+    });
+  `;
+  const blob = new Blob([swCode], {type: 'application/javascript'});
+  const swUrl = URL.createObjectURL(blob);
+  navigator.serviceWorker.register(swUrl, {scope: '/'}).catch(() => {
+    // Blob SW may fail on some browsers due to scope restrictions — that's OK
+  });
+}
+</script>
+</body>
+</html>
