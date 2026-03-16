@@ -990,7 +990,8 @@ const _stravaCodeOnLoad = (() => {
   // Only capture if it looks like a Strava callback (has scope with 'activity')
   if (code && scope && scope.includes('activity')) {
     console.log('Strava code captured:', code.substring(0, 10) + '...');
-    window.history.replaceState({}, '', window.location.pathname);
+    // Don't clean URL yet — Supabase might need it
+    // We'll clean it in handleStravaCallback
     return code;
   }
   return null;
@@ -3602,23 +3603,28 @@ async function syncStrava(fullSync = false) {
 }
 
 async function handleStravaCallback(code) {
+  console.log('handleStravaCallback called, code:', code?.substring(0,10), 'user:', currentUser?.email);
   if (!code || !currentUser) {
-    showToast(`Erro: code=${!!code} user=${!!currentUser}`);
+    console.log('Early return - code:', !!code, 'user:', !!currentUser);
+    showToast('Erro callback: sem code ou user', 6000);
     return;
   }
-  showToast('A trocar código Strava...');
+  showToast('A trocar código Strava...', 8000);
   try {
+    console.log('Calling edge function...');
     const res = await fetch(STRAVA_EDGE_FN, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'exchange', code }),
     });
+    console.log('Edge fn status:', res.status);
     const data = await res.json();
+    console.log('Edge fn response:', JSON.stringify(data).substring(0, 150));
     if (!data.access_token) {
-      showToast('Erro Strava: ' + (data.message || data.error || JSON.stringify(data)), 6000);
+      showToast('Erro Strava: ' + (data.message || data.error || JSON.stringify(data)), 8000);
       return;
     }
-    showToast('Token obtido, a guardar...');
+    showToast('Token obtido, a guardar...', 3000);
     await supa.from('strava_tokens').upsert({
       user_id: currentUser.id,
       access_token: data.access_token,
@@ -3635,29 +3641,13 @@ async function handleStravaCallback(code) {
     updateStravaBtn();
     await syncStrava(true);
   } catch(e) {
-    showToast('Erro: ' + e.message);
+    console.log('Callback error:', e.message, e.stack);
+    showToast('Erro: ' + e.message, 8000);
   }
 }
 // ══════════════════════════════════════════
 // Init: show login screen while auth state is determined
-// onAuthStateChange above will handle load() + renderAll() once session is confirmed
 showLoginScreen();
-
-// If Strava code was captured and user is already logged in, handle immediately
-if (_stravaCodeOnLoad) {
-  supa.auth.getSession().then(({ data: { session } }) => {
-    if (session?.user) {
-      currentUser = session.user;
-      showApp();
-      load().then(() => {
-        loadStravaTokens().then(() => {
-          renderAll();
-          handleStravaCallback(_stravaCodeOnLoad);
-        });
-      });
-    }
-  });
-}
 
 // If returning from Strava OAuth, handle after session is confirmed
 if (_stravaCodeOnLoad) {
