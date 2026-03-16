@@ -489,6 +489,10 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
   <header>
     <div class="logo">PACE<span>.run</span></div>
     <div class="header-actions">
+      <button id="strava-btn" onclick="stravaAction()" title="Strava" style="display:none;background:transparent;border:none;cursor:pointer;padding:6px;border-radius:8px;display:flex;align-items:center;gap:6px;font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--muted)">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="#FC4C02"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/></svg>
+        <span id="strava-btn-label">Ligar Strava</span>
+      </button>
       <label for="file-input" class="btn-icon" title="Importar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
       </label>
@@ -1037,10 +1041,16 @@ supa.auth.onAuthStateChange(async (event, session) => {
     currentUser = session.user;
     showApp();
     await load();
+    await loadStravaTokens();
     renderAll();
+    // Handle Strava OAuth callback if returning from Strava
+    if (window.location.search.includes('code=')) {
+      await handleStravaCallback();
+    }
   } else {
     currentUser = null;
     runs = []; gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
+    stravaTokens = null;
     showLoginScreen();
   }
 });
@@ -3394,7 +3404,205 @@ async function clearAllData() {
 }
 
 // ══════════════════════════════════════════
-//  INIT
+//  STRAVA INTEGRATION
+// ══════════════════════════════════════════
+const STRAVA_CLIENT_ID = '212518';
+const STRAVA_EDGE_FN = 'https://urtvucvjkfffwhkdfclp.supabase.co/functions/v1/strava-oauth';
+const STRAVA_REDIRECT = 'https://diogomachado28.github.io/pace-run';
+const STRAVA_SCOPE = 'activity:read_all';
+
+let stravaTokens = null; // { access_token, refresh_token, expires_at, athlete_id }
+
+async function loadStravaTokens() {
+  if (!currentUser) return;
+  const { data } = await supa.from('strava_tokens').select('*').eq('user_id', currentUser.id).single();
+  stravaTokens = data || null;
+  updateStravaBtn();
+}
+
+function updateStravaBtn() {
+  const btn = document.getElementById('strava-btn');
+  const label = document.getElementById('strava-btn-label');
+  if (!btn) return;
+  btn.style.display = 'flex';
+  if (stravaTokens) {
+    label.textContent = 'Sincronizar';
+    btn.style.color = '#FC4C02';
+  } else {
+    label.textContent = 'Ligar Strava';
+    btn.style.color = 'var(--muted)';
+  }
+}
+
+async function stravaAction() {
+  if (stravaTokens) {
+    await syncStrava();
+  } else {
+    connectStrava();
+  }
+}
+
+function connectStrava() {
+  const url = `https://www.strava.com/oauth/authorize?client_id=${STRAVA_CLIENT_ID}&redirect_uri=${encodeURIComponent(STRAVA_REDIRECT)}&response_type=code&scope=${STRAVA_SCOPE}`;
+  window.location.href = url;
+}
+
+async function getValidStravaToken() {
+  if (!stravaTokens) return null;
+  // Refresh if expired (with 5min buffer)
+  if (Date.now() / 1000 > stravaTokens.expires_at - 300) {
+    const res = await fetch(STRAVA_EDGE_FN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'refresh', refresh_token: stravaTokens.refresh_token }),
+    });
+    const data = await res.json();
+    if (data.access_token) {
+      stravaTokens.access_token = data.access_token;
+      stravaTokens.expires_at = data.expires_at;
+      await supa.from('strava_tokens').upsert({
+        user_id: currentUser.id,
+        access_token: data.access_token,
+        refresh_token: data.refresh_token || stravaTokens.refresh_token,
+        expires_at: data.expires_at,
+        athlete_id: stravaTokens.athlete_id,
+      });
+    }
+  }
+  return stravaTokens.access_token;
+}
+
+async function syncStrava(fullSync = false) {
+  showToast('A sincronizar com Strava...');
+  const token = await getValidStravaToken();
+  if (!token) return;
+
+  // Find latest run date to only fetch new ones
+  const latestDate = fullSync ? 0 : (runs.length
+    ? Math.max(...runs.map(r => new Date(r.date).getTime())) / 1000
+    : 0);
+
+  let page = 1, newCount = 0, allActivities = [];
+  while (true) {
+    const url = `https://www.strava.com/api/v3/athlete/activities?per_page=50&page=${page}&after=${Math.floor(latestDate)}`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const activities = await res.json();
+    if (!activities.length) break;
+    allActivities = allActivities.concat(activities.filter(a => a.type === 'Run' || a.sport_type === 'Run'));
+    if (activities.length < 50) break;
+    page++;
+  }
+
+  if (!allActivities.length) { showToast('Sem corridas novas no Strava'); return; }
+
+  // Fetch GPX streams for each new activity
+  for (const act of allActivities) {
+    const id = `strava_${act.id}`;
+    if (runs.find(r => r.id === id)) continue; // already imported
+
+    // Basic run data
+    runs.push({
+      id, name: act.name || `Corrida`,
+      date: act.start_date,
+      dist: Math.round(act.distance / 10) / 100, // metres to km
+      secs: act.moving_time,
+      elev: Math.round(act.total_elevation_gain || 0),
+      cals: 0, type: 'Run', bestSplit: null,
+    });
+
+    // Fetch GPS streams (latlng + time + distance)
+    try {
+      const streamRes = await fetch(
+        `https://www.strava.com/api/v3/activities/${act.id}/streams?keys=latlng,time,distance&key_by_type=true`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const streams = await streamRes.json();
+      if (streams.latlng?.data) {
+        gpxRoutes[id] = streams.latlng.data;
+        // Build splits and points from streams
+        if (streams.time?.data && streams.distance?.data) {
+          const times = streams.time.data;
+          const dists = streams.distance.data.map(d => d / 1000); // to km
+          // Store subsampled points
+          gpxPoints[id] = times
+            .map((t, i) => ({ dist: dists[i], t: new Date(act.start_date).getTime() + t * 1000 }))
+            .filter((_, i) => i % 3 === 0);
+          // Build km splits
+          const splits = [];
+          let kmIdx = 1;
+          while (kmIdx <= Math.floor(dists[dists.length - 1])) {
+            const endI = dists.findIndex(d => d >= kmIdx);
+            const startI = dists.findIndex(d => d >= kmIdx - 1);
+            if (endI > 0 && startI >= 0) {
+              const secs = times[endI] - times[startI];
+              if (secs > 60 && secs < 1800) splits.push(Math.round(secs));
+            }
+            kmIdx++;
+          }
+          if (splits.length) {
+            gpxSplits[id] = splits;
+            runs[runs.length - 1].bestSplit = Math.min(...splits);
+          }
+        }
+      }
+    } catch(e) { /* stream fetch failed, basic data only */ }
+    newCount++;
+  }
+
+  if (newCount > 0) {
+    // Renumber all runs
+    runs.sort((a, b) => new Date(a.date) - new Date(b.date));
+    runs.forEach((r, i) => {
+      if (!RACE_OVERRIDES.some(ov => r.date.startsWith(ov.date))) {
+        r.name = `${i + 1}ª corrida`;
+      }
+    });
+    runs.sort((a, b) => new Date(b.date) - new Date(a.date));
+    applyRaceOverrides();
+    await save();
+    renderAll();
+    showToast(`✓ ${newCount} corrida${newCount !== 1 ? 's' : ''} importada${newCount !== 1 ? 's' : ''} do Strava`);
+  } else {
+    showToast('Tudo actualizado — sem corridas novas');
+  }
+}
+
+async function handleStravaCallback() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  if (!code || !currentUser) return;
+
+  // Clean URL
+  window.history.replaceState({}, '', window.location.pathname);
+
+  showToast('A ligar ao Strava...');
+  const res = await fetch(STRAVA_EDGE_FN, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'exchange', code }),
+  });
+  const data = await res.json();
+  if (!data.access_token) { showToast('Erro ao ligar ao Strava'); return; }
+
+  // Save tokens
+  await supa.from('strava_tokens').upsert({
+    user_id: currentUser.id,
+    access_token: data.access_token,
+    refresh_token: data.refresh_token,
+    expires_at: data.expires_at,
+    athlete_id: data.athlete?.id,
+  });
+  stravaTokens = {
+    access_token: data.access_token,
+    refresh_token: data.refresh_token,
+    expires_at: data.expires_at,
+    athlete_id: data.athlete?.id,
+  };
+  updateStravaBtn();
+
+  // Import all activities
+  await syncStrava(true);
+}
 // ══════════════════════════════════════════
 // Init: show login screen while auth state is determined
 // onAuthStateChange above will handle load() + renderAll() once session is confirmed
