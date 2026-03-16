@@ -1215,8 +1215,10 @@ function applyRaceOverrides() {
 
 async function load() {
   // Load from IndexedDB cache first (instant)
+  console.log('load: opening IndexedDB...');
   try {
     await openDB();
+    console.log('load: IndexedDB open, fetching...');
     const [r, rt, sp, pt] = await Promise.all([
       dbGet('runs'), dbGet('gpxRoutes'), dbGet('gpxSplits'), dbGet('gpxPoints')
     ]);
@@ -1225,15 +1227,23 @@ async function load() {
     if (sp) gpxSplits = sp;
     if (pt) gpxPoints = pt;
     applyRaceOverrides();
-  } catch(e) { runs = []; gpxRoutes = {}; gpxSplits = {}; gpxPoints = {}; }
+    console.log('load: IndexedDB done, runs:', runs.length);
+  } catch(e) {
+    console.log('load: IndexedDB error:', e.message);
+    runs = []; gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
+  }
 
-  // Then fetch from Supabase (source of truth)
+  // Then fetch from Supabase with timeout
   if (!currentUser) return;
+  console.log('load: fetching from Supabase...');
   try {
-    const [{ data: runsData }, { data: gpxData }] = await Promise.all([
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000));
+    const fetchData = Promise.all([
       supa.from('runs').select('data').eq('user_id', currentUser.id),
       supa.from('gpx_data').select('id,routes,splits,points').eq('user_id', currentUser.id),
     ]);
+    const [{ data: runsData }, { data: gpxData }] = await Promise.race([fetchData, timeout]);
+    console.log('load: Supabase returned', runsData?.length, 'runs');
     if (runsData) {
       runs = runsData.map(r => r.data);
       gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
@@ -1248,8 +1258,11 @@ async function load() {
         dbSet('gpxSplits', gpxSplits), dbSet('gpxPoints', gpxPoints),
       ]).catch(() => {});
     }
-    renderAll(); // always re-render after Supabase responds
-  } catch(e) { console.warn('Supabase load error:', e); renderAll(); }
+    renderAll();
+  } catch(e) {
+    console.warn('load: Supabase error:', e.message);
+    renderAll();
+  }
 }
 
 // ══════════════════════════════════════════
