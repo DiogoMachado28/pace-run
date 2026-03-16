@@ -1057,11 +1057,11 @@ supa.auth.onAuthStateChange(async (event, session) => {
   if (session?.user) {
     currentUser = session.user;
     showApp();
-    await load();
-    await loadStravaTokens();
+    try { await load(); } catch(e) { console.log('load error:', e.message); }
+    try { await loadStravaTokens(); } catch(e) { console.log('loadStrava error:', e.message); }
     renderAll();
+    console.log('stravaCode check:', _stravaCodeOnLoad?.substring(0,8));
     if (_stravaCodeOnLoad) {
-      console.log('Auth ready, calling Strava callback');
       await handleStravaCallback(_stravaCodeOnLoad);
     }
   } else {
@@ -1071,21 +1071,6 @@ supa.auth.onAuthStateChange(async (event, session) => {
     showLoginScreen();
   }
 });
-
-// Also check session immediately (handles page reload after Strava redirect)
-(async () => {
-  const { data: { session } } = await supa.auth.getSession();
-  console.log('Immediate session check:', session?.user?.email || 'none');
-  if (session?.user && _stravaCodeOnLoad) {
-    console.log('Session found on load with Strava code, processing...');
-    currentUser = session.user;
-    showApp();
-    await load();
-    await loadStravaTokens();
-    renderAll();
-    await handleStravaCallback(_stravaCodeOnLoad);
-  }
-})();
 
 // ══════════════════════════════════════════
 //  INDEXEDDB (cache local)
