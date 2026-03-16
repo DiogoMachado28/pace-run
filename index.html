@@ -985,9 +985,12 @@ const _stravaCodeOnLoad = (() => {
   const p = new URLSearchParams(window.location.search);
   const code = p.get('code');
   const scope = p.get('scope');
+  console.log('URL params on load:', window.location.search);
+  console.log('code:', code, 'scope:', scope);
   // Only capture if it looks like a Strava callback (has scope with 'activity')
   if (code && scope && scope.includes('activity')) {
-    window.history.replaceState({}, '', window.location.pathname); // clean URL immediately
+    console.log('Strava code captured:', code.substring(0, 10) + '...');
+    window.history.replaceState({}, '', window.location.pathname);
     return code;
   }
   return null;
@@ -1056,6 +1059,7 @@ supa.auth.onAuthStateChange(async (event, session) => {
     await loadStravaTokens();
     renderAll();
     // Handle Strava OAuth callback if returning from Strava
+    console.log('Auth ready, _stravaCodeOnLoad:', _stravaCodeOnLoad);
     if (_stravaCodeOnLoad) {
       await handleStravaCallback(_stravaCodeOnLoad);
     }
