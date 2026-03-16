@@ -980,9 +980,18 @@ let fSort = 'date';
 let fSortDir = 'desc'; // 'asc' | 'desc'
 let filtersOpen = false;
 
-// ══════════════════════════════════════════
-//  SUPABASE
-// ══════════════════════════════════════════
+// Capture Strava OAuth code immediately before anything else clears the URL
+const _stravaCodeOnLoad = (() => {
+  const p = new URLSearchParams(window.location.search);
+  const code = p.get('code');
+  const scope = p.get('scope');
+  // Only capture if it looks like a Strava callback (has scope with 'activity')
+  if (code && scope && scope.includes('activity')) {
+    window.history.replaceState({}, '', window.location.pathname); // clean URL immediately
+    return code;
+  }
+  return null;
+})();
 const SUPA_URL = 'https://urtvucvjkfffwhkdfclp.supabase.co';
 const SUPA_KEY = 'sb_publishable_x0COUdZugcp_Ft70WYu4iQ__7NirBOA';
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
@@ -1044,8 +1053,8 @@ supa.auth.onAuthStateChange(async (event, session) => {
     await loadStravaTokens();
     renderAll();
     // Handle Strava OAuth callback if returning from Strava
-    if (window.location.search.includes('code=')) {
-      await handleStravaCallback();
+    if (_stravaCodeOnLoad) {
+      await handleStravaCallback(_stravaCodeOnLoad);
     }
   } else {
     currentUser = null;
@@ -3568,13 +3577,8 @@ async function syncStrava(fullSync = false) {
   }
 }
 
-async function handleStravaCallback() {
-  const params = new URLSearchParams(window.location.search);
-  const code = params.get('code');
+async function handleStravaCallback(code) {
   if (!code || !currentUser) return;
-
-  // Clean URL
-  window.history.replaceState({}, '', window.location.pathname);
 
   showToast('A ligar ao Strava...');
   const res = await fetch(STRAVA_EDGE_FN, {
