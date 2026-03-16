@@ -3644,19 +3644,6 @@ async function handleStravaCallback(code) {
 showLoginScreen();
 
 // If returning from Strava OAuth, handle after session is confirmed
-if (_stravaCodeOnLoad) {
-  supa.auth.getSession().then(async ({ data: { session } }) => {
-    if (session?.user) {
-      currentUser = session.user;
-      showApp();
-      await load();
-      await loadStravaTokens();
-      renderAll();
-      await handleStravaCallback(_stravaCodeOnLoad);
-    }
-  });
-}
-
 // ── PWA: Service Worker (inline via blob) ──
 if ('serviceWorker' in navigator) {
   const swCode = `
