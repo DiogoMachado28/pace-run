@@ -1077,11 +1077,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Auth state — drives the whole app lifecycle
 let _appBooted = false;
+let _userLoggedInExplicitly = false; // only true after user clicks login or comes from Strava OAuth
 supa.auth.onAuthStateChange(async (event, session) => {
   console.log('Auth event:', event, 'user:', session?.user?.email);
 
   if (!session?.user) {
-    // No active session — show login screen, reset in-memory state
     setLoginLoading(false);
     currentUser = null;
     runs = []; gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
@@ -1090,13 +1090,27 @@ supa.auth.onAuthStateChange(async (event, session) => {
     return;
   }
 
-  // Has a session — only act on SIGNED_IN to avoid duplicate loads on TOKEN_REFRESHED etc.
-  if (event !== 'SIGNED_IN') return;
+  // INITIAL_SESSION: Supabase recovered a session automatically.
+  // Only honour it if:
+  // (a) we're processing a Strava OAuth callback (code in URL), or
+  // (b) user explicitly logged in this page load
+  if (event === 'INITIAL_SESSION') {
+    if (_stravaCodeOnLoad) {
+      // Strava OAuth flow — need the session to exchange the code
+      _userLoggedInExplicitly = true;
+    } else {
+      // Auto-recovered session — ignore it, show login
+      showLoginScreen();
+      return;
+    }
+  }
+
+  // Only proceed on SIGNED_IN (explicit) or INITIAL_SESSION+Strava
+  if (event !== 'SIGNED_IN' && event !== 'INITIAL_SESSION') return;
 
   currentUser = session.user;
   showApp();
 
-  // Handle Strava OAuth callback (only once)
   if (_stravaCodeOnLoad && !_appBooted) {
     await handleStravaCallback(_stravaCodeOnLoad);
   }
@@ -1309,7 +1323,9 @@ async function load() {
     ]);
     const [{ data: runsData }, { data: gpxData }] = await Promise.race([fetchData, timeout]);
     console.log('load: Supabase returned', runsData?.length, 'runs');
-    if (runsData && runsData.length > 0) {
+    const localCount = runs.length;
+    if (runsData && runsData.length >= localCount && runsData.length > 0) {
+      // Supabase has data and at least as many runs as local cache — use it
       runs = runsData.map(r => r.data);
       gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
       (gpxData || []).forEach(g => {
@@ -1324,7 +1340,11 @@ async function load() {
         dbSet('gpxSplits', gpxSplits), dbSet('gpxPoints', gpxPoints),
       ]).catch(() => {});
       renderAll(); // Re-render with fresh Supabase data
+    } else if (runsData && runsData.length === 0 && localCount === 0) {
+      // Both empty — user genuinely has no runs
+      renderAll();
     }
+    // If Supabase returns fewer runs than local, keep local data (don't overwrite)
   } catch(e) {
     console.warn('load: Supabase error:', e.message);
     // Supabase failed but IndexedDB data is already rendered — that's fine
