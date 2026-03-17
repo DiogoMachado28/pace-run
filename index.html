@@ -1228,6 +1228,44 @@ const RACE_OVERRIDES = [
   },
 ];
 
+// Recalculate splits from gpxPoints for runs that have missing/wrong splits
+function recalcSplitsFromPoints() {
+  let fixed = 0;
+  for (const run of runs) {
+    const pts = gpxPoints[run.id];
+    if (!pts || pts.length < 2) continue;
+    // Only recalc if no splits exist yet
+    if (gpxSplits[run.id] && gpxSplits[run.id].length > 0) continue;
+    const totalKm = Math.floor(pts[pts.length - 1].dist);
+    if (totalKm < 1) continue;
+
+    // Interpolate time at each km boundary
+    const kmTimes = [pts[0].t];
+    for (let km = 1; km <= totalKm; km++) {
+      let i = 0;
+      while (i < pts.length - 1 && pts[i + 1].dist < km) i++;
+      if (i >= pts.length - 1) break;
+      const d0 = pts[i].dist, d1 = pts[i + 1].dist;
+      const t0 = pts[i].t,    t1 = pts[i + 1].t;
+      const frac = d1 > d0 ? (km - d0) / (d1 - d0) : 0;
+      kmTimes.push(t0 + frac * (t1 - t0));
+    }
+    const splits = [];
+    for (let k = 1; k < kmTimes.length; k++) {
+      const secs = Math.round((kmTimes[k] - kmTimes[k - 1]) / 1000);
+      if (secs > 60 && secs < 1800) splits.push(secs);
+    }
+    if (splits.length) {
+      gpxSplits[run.id] = splits;
+      fixed++;
+    }
+  }
+  if (fixed > 0) {
+    console.log('recalcSplits: fixed', fixed, 'runs');
+    dbSet('gpxSplits', gpxSplits).catch(() => {});
+  }
+}
+
 function applyRaceOverrides() {
   for (const ov of RACE_OVERRIDES) {
     const run = runs.find(r => r.date.startsWith(ov.date));
@@ -1278,9 +1316,20 @@ function applyRaceOverrides() {
               gpxSplits[run.id][gpxSplits[run.id].length - 1] = adjustedLast;
             }
           }
+          // Recalculate bestSplit now that splits have changed
+          run.bestSplit = Math.min(...gpxSplits[run.id]);
         }
       }
     }
+  }
+
+  // Recalculate missing splits from gpxPoints
+  recalcSplitsFromPoints();
+
+  // Always sync bestSplit from gpxSplits (source of truth) for every run
+  for (const run of runs) {
+    const s = gpxSplits[run.id];
+    if (s && s.length) run.bestSplit = Math.min(...s);
   }
 }
 
@@ -1305,6 +1354,10 @@ async function load() {
     if (sp) gpxSplits = sp;
     if (pt) gpxPoints = pt;
     applyRaceOverrides();
+    // Persist any bestSplit corrections back to IndexedDB
+    if (r && r.length > 0) {
+      dbSet('runs', runs).catch(() => {});
+    }
     console.log('load: IndexedDB done, runs:', runs.length);
   } catch(e) {
     console.log('load: IndexedDB error:', e.message);
@@ -3662,17 +3715,30 @@ async function syncStrava(fullSync = false) {
           gpxPoints[id] = times
             .map((t, i) => ({ dist: dists[i], t: new Date(act.start_date).getTime() + t * 1000 }))
             .filter((_, i) => i % 3 === 0);
-          // Build km splits
+          // Build km splits using interpolation at exact km boundaries
+          // For each km boundary, interpolate the exact time rather than snapping to nearest GPS point
           const splits = [];
-          let kmIdx = 1;
-          while (kmIdx <= Math.floor(dists[dists.length - 1])) {
-            const endI = dists.findIndex(d => d >= kmIdx);
-            const startI = dists.findIndex(d => d >= kmIdx - 1);
-            if (endI > 0 && startI >= 0) {
-              const secs = times[endI] - times[startI];
-              if (secs > 60 && secs < 1800) splits.push(Math.round(secs));
-            }
-            kmIdx++;
+          const totalKm = Math.floor(dists[dists.length - 1]);
+          
+          // Build array of interpolated times at each km boundary (0, 1, 2, ... totalKm)
+          const kmTimes = [0]; // km 0 = start = time 0
+          for (let km = 1; km <= totalKm; km++) {
+            // Find the two GPS points that straddle this km boundary
+            let i = 0;
+            while (i < dists.length - 1 && dists[i + 1] < km) i++;
+            if (i >= dists.length - 1) break; // ran out of data
+            const d0 = dists[i], d1 = dists[i + 1];
+            const t0 = times[i], t1 = times[i + 1];
+            // Linear interpolation
+            const frac = d1 > d0 ? (km - d0) / (d1 - d0) : 0;
+            const tKm = t0 + frac * (t1 - t0);
+            kmTimes.push(tKm);
+          }
+          
+          // Each split = time between consecutive km boundaries
+          for (let k = 1; k < kmTimes.length; k++) {
+            const secs = Math.round(kmTimes[k] - kmTimes[k - 1]);
+            if (secs > 60 && secs < 1800) splits.push(secs);
           }
           if (splits.length) {
             gpxSplits[id] = splits;
