@@ -1039,6 +1039,8 @@ async function doSignup() {
   else { showLoginError('✓ Verifica o teu email para confirmar a conta.'); setLoginLoading(false); }
 }
 async function doLogout() {
+  // Clear session storage manually first so Supabase has nothing to recover
+  sessionStorage.clear();
   try { await supa.auth.signOut(); } catch(e) {}
   runs = []; gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
   stravaTokens = null;
@@ -1074,16 +1076,12 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Auth state — drives the whole app lifecycle
-// With persistSession:false, the only events that fire with a session are:
-//   SIGNED_IN  — user explicitly logged in, or returning from Strava OAuth
-//   SIGNED_OUT — user logged out
-// INITIAL_SESSION will always have session=null so it falls through to SIGNED_OUT branch.
 let _appBooted = false;
 supa.auth.onAuthStateChange(async (event, session) => {
   console.log('Auth event:', event, 'user:', session?.user?.email);
 
   if (!session?.user) {
-    // No session — always show login, reset everything
+    // No active session — show login screen, reset in-memory state
     setLoginLoading(false);
     currentUser = null;
     runs = []; gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
@@ -1092,13 +1090,13 @@ supa.auth.onAuthStateChange(async (event, session) => {
     return;
   }
 
-  // Has session — only act on SIGNED_IN to avoid duplicate loads
+  // Has a session — only act on SIGNED_IN to avoid duplicate loads on TOKEN_REFRESHED etc.
   if (event !== 'SIGNED_IN') return;
 
   currentUser = session.user;
   showApp();
 
-  // Handle Strava OAuth callback
+  // Handle Strava OAuth callback (only once)
   if (_stravaCodeOnLoad && !_appBooted) {
     await handleStravaCallback(_stravaCodeOnLoad);
   }
@@ -1109,6 +1107,26 @@ supa.auth.onAuthStateChange(async (event, session) => {
   renderAll();
   console.log('renderAll done, runs:', runs.length);
 });
+
+// On page load, always try to restore IndexedDB data immediately.
+// This runs independently of auth — if the user has local cached data,
+// we pre-load it so it's ready the moment they log in (no delay after login).
+(async () => {
+  try {
+    await openDB();
+    const [r, rt, sp, pt] = await Promise.all([
+      dbGet('runs'), dbGet('gpxRoutes'), dbGet('gpxSplits'), dbGet('gpxPoints')
+    ]);
+    if (r && r.length > 0) {
+      runs = r;
+      if (rt) gpxRoutes = rt;
+      if (sp) gpxSplits = sp;
+      if (pt) gpxPoints = pt;
+      applyRaceOverrides();
+      console.log('Pre-loaded', runs.length, 'runs from IndexedDB');
+    }
+  } catch(e) { /* silent — IndexedDB may be empty */ }
+})();
 
 // ══════════════════════════════════════════
 //  INDEXEDDB (cache local)
