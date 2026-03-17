@@ -486,6 +486,12 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
 </div>
 
 <div id="app">
+  <!-- Loading overlay shown while fetching data from Supabase -->
+  <div id="app-loading" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:8888;flex-direction:column;align-items:center;justify-content:center;gap:16px">
+    <div style="font-family:var(--font-display);font-size:28px;font-weight:800;color:var(--accent)">PACE<span style="color:var(--text);font-weight:400">.run</span></div>
+    <div style="font-size:13px;color:var(--muted)">A carregar as tuas corridas...</div>
+  </div>
+
   <header>
     <div class="logo">PACE<span>.run</span></div>
     <div class="header-actions">
@@ -1058,7 +1064,7 @@ supa.auth.onAuthStateChange(async (event, session) => {
     currentUser = session.user;
     showApp();
     console.log('stravaCode:', _stravaCodeOnLoad, 'event:', event);
-    if (_stravaCodeOnLoad && event === 'SIGNED_IN') {
+    if (_stravaCodeOnLoad && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
       console.log('Processing Strava callback before load...');
       await handleStravaCallback(_stravaCodeOnLoad);
     }
@@ -1213,16 +1219,23 @@ function applyRaceOverrides() {
   }
 }
 
+function showAppLoading(on) {
+  const el = document.getElementById('app-loading');
+  if (!el) return;
+  el.style.display = on ? 'flex' : 'none';
+}
+
 async function load() {
   // Load from IndexedDB cache first (instant)
   console.log('load: opening IndexedDB...');
+  let hasLocalData = false;
   try {
     await openDB();
     console.log('load: IndexedDB open, fetching...');
     const [r, rt, sp, pt] = await Promise.all([
       dbGet('runs'), dbGet('gpxRoutes'), dbGet('gpxSplits'), dbGet('gpxPoints')
     ]);
-    if (r)  runs = r;
+    if (r)  { runs = r; hasLocalData = r.length > 0; }
     if (rt) gpxRoutes = rt;
     if (sp) gpxSplits = sp;
     if (pt) gpxPoints = pt;
@@ -1235,6 +1248,8 @@ async function load() {
 
   // Then fetch from Supabase with timeout
   if (!currentUser) return;
+  // If no local cache, show loading overlay so the app doesn't appear empty
+  if (!hasLocalData) showAppLoading(true);
   console.log('load: fetching from Supabase...');
   try {
     const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000));
@@ -1258,10 +1273,10 @@ async function load() {
         dbSet('gpxSplits', gpxSplits), dbSet('gpxPoints', gpxPoints),
       ]).catch(() => {});
     }
-    renderAll();
   } catch(e) {
     console.warn('load: Supabase error:', e.message);
-    renderAll();
+  } finally {
+    showAppLoading(false);
   }
 }
 
