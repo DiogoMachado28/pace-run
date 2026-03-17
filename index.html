@@ -1272,7 +1272,7 @@ function showAppLoading(on) {
 }
 
 async function load() {
-  // Load from IndexedDB cache first (instant)
+  // Step 1: Load from IndexedDB (instant, works offline)
   console.log('load: opening IndexedDB...');
   let hasLocalData = false;
   try {
@@ -1281,7 +1281,7 @@ async function load() {
     const [r, rt, sp, pt] = await Promise.all([
       dbGet('runs'), dbGet('gpxRoutes'), dbGet('gpxSplits'), dbGet('gpxPoints')
     ]);
-    if (r)  { runs = r; hasLocalData = r.length > 0; }
+    if (r && r.length > 0) { runs = r; hasLocalData = true; }
     if (rt) gpxRoutes = rt;
     if (sp) gpxSplits = sp;
     if (pt) gpxPoints = pt;
@@ -1289,23 +1289,27 @@ async function load() {
     console.log('load: IndexedDB done, runs:', runs.length);
   } catch(e) {
     console.log('load: IndexedDB error:', e.message);
-    runs = []; gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
   }
 
-  // Then fetch from Supabase with timeout
-  if (!currentUser) return;
-  // If no local cache, show loading overlay so the app doesn't appear empty
-  if (!hasLocalData) showAppLoading(true);
+  // Step 2: If we have local data, render immediately — don't wait for Supabase
+  if (hasLocalData) {
+    renderAll();
+  } else {
+    showAppLoading(true);
+  }
+
+  // Step 3: Sync from Supabase in background (source of truth)
+  if (!currentUser) { showAppLoading(false); return; }
   console.log('load: fetching from Supabase...');
   try {
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000));
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000));
     const fetchData = Promise.all([
       supa.from('runs').select('data').eq('user_id', currentUser.id),
       supa.from('gpx_data').select('id,routes,splits,points').eq('user_id', currentUser.id),
     ]);
     const [{ data: runsData }, { data: gpxData }] = await Promise.race([fetchData, timeout]);
     console.log('load: Supabase returned', runsData?.length, 'runs');
-    if (runsData) {
+    if (runsData && runsData.length > 0) {
       runs = runsData.map(r => r.data);
       gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
       (gpxData || []).forEach(g => {
@@ -1314,13 +1318,16 @@ async function load() {
         if (g.points) gpxPoints[g.id] = g.points;
       });
       applyRaceOverrides();
+      // Update IndexedDB cache with fresh data
       Promise.all([
         dbSet('runs', runs), dbSet('gpxRoutes', gpxRoutes),
         dbSet('gpxSplits', gpxSplits), dbSet('gpxPoints', gpxPoints),
       ]).catch(() => {});
+      renderAll(); // Re-render with fresh Supabase data
     }
   } catch(e) {
     console.warn('load: Supabase error:', e.message);
+    // Supabase failed but IndexedDB data is already rendered — that's fine
   } finally {
     showAppLoading(false);
   }
