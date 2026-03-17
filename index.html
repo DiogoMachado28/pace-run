@@ -502,7 +502,9 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
       <label for="file-input" class="btn-icon" title="Importar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
       </label>
-      <button class="btn-icon" onclick="doLogout()" title="Sair" style="font-size:16px">⏻</button>
+      <button class="btn-icon" onclick="doLogout()" title="Sair">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
       <button class="btn-icon" onclick="clearAllData()" title="Limpar dados">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
       </button>
@@ -1039,16 +1041,19 @@ async function doSignup() {
   else { showLoginError('✓ Verifica o teu email para confirmar a conta.'); setLoginLoading(false); }
 }
 async function doLogout() {
-  // Clear session storage manually first so Supabase has nothing to recover
-  sessionStorage.clear();
-  try { await supa.auth.signOut(); } catch(e) {}
+  // Clear state immediately — don't wait for Supabase
   runs = []; gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
   stravaTokens = null;
   currentUser = null;
-  // Clear IndexedDB cache
-  try { await Promise.all([dbSet('runs',[]),dbSet('gpxRoutes',{}),dbSet('gpxSplits',{}),dbSet('gpxPoints',{})]); } catch(e){}
   setLoginLoading(false);
   showLoginScreen();
+  // Clear session and IndexedDB in background
+  sessionStorage.clear();
+  supa.auth.signOut().catch(() => {});
+  Promise.all([
+    dbSet('runs',[]), dbSet('gpxRoutes',{}),
+    dbSet('gpxSplits',{}), dbSet('gpxPoints',{})
+  ]).catch(() => {});
 }
 function showLoginError(msg) {
   const el = document.getElementById('login-error');
