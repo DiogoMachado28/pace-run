@@ -1004,7 +1004,13 @@ const _stravaCodeOnLoad = (() => {
 })();
 const SUPA_URL = 'https://urtvucvjkfffwhkdfclp.supabase.co';
 const SUPA_KEY = 'sb_publishable_x0COUdZugcp_Ft70WYu4iQ__7NirBOA';
-const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  }
+});
 let currentUser = null;
 
 async function doLogin() {
@@ -1030,6 +1036,7 @@ async function doLogout() {
   currentUser = null;
   // Clear IndexedDB cache
   try { await Promise.all([dbSet('runs',[]),dbSet('gpxRoutes',{}),dbSet('gpxSplits',{}),dbSet('gpxPoints',{})]); } catch(e){}
+  setLoginLoading(false);
   showLoginScreen();
 }
 function showLoginError(msg) {
@@ -1060,25 +1067,47 @@ document.addEventListener('DOMContentLoaded', () => {
 // Auth state — drives the whole app lifecycle
 supa.auth.onAuthStateChange(async (event, session) => {
   console.log('Auth event:', event, 'user:', session?.user?.email);
+
+  if (event === 'SIGNED_OUT' || (!session?.user)) {
+    // Always reset loading state so login form is usable again
+    setLoginLoading(false);
+    currentUser = null;
+    runs = []; gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
+    stravaTokens = null;
+    showLoginScreen();
+    return;
+  }
+
+  // INITIAL_SESSION = Supabase recovered a saved session automatically.
+  // Only honour it if we're in the middle of a Strava OAuth callback,
+  // otherwise force the user to log in manually.
+  if (event === 'INITIAL_SESSION') {
+    if (_stravaCodeOnLoad) {
+      // Coming back from Strava OAuth — session needed to exchange code
+      currentUser = session.user;
+      showApp();
+      await handleStravaCallback(_stravaCodeOnLoad);
+      try { await load(); } catch(e) { console.log('load error:', e.message); }
+      try { await loadStravaTokens(); } catch(e) {}
+      renderAll();
+    } else {
+      // Recovered session but no special flow — show login screen,
+      // let the user choose to log in explicitly.
+      showLoginScreen();
+    }
+    return;
+  }
+
+  // SIGNED_IN = explicit login by the user (or TOKEN_REFRESHED)
   if (session?.user) {
     currentUser = session.user;
     showApp();
-    console.log('stravaCode:', _stravaCodeOnLoad, 'event:', event);
-    if (_stravaCodeOnLoad && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
-      console.log('Processing Strava callback before load...');
-      await handleStravaCallback(_stravaCodeOnLoad);
-    }
     console.log('Starting load...');
     try { await load(); } catch(e) { console.log('load error:', e.message); }
     console.log('Load done, rendering...');
     try { await loadStravaTokens(); } catch(e) { console.log('loadStrava error:', e.message); }
     renderAll();
     console.log('renderAll done, runs:', runs.length);
-  } else {
-    currentUser = null;
-    runs = []; gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
-    stravaTokens = null;
-    showLoginScreen();
   }
 });
 
