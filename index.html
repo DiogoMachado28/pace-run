@@ -892,88 +892,144 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
 
     <!-- PLANO -->
     <div class="page" id="page-plano">
-      <div style="padding:16px 20px 0">
-        <div style="font-family:var(--font-display);font-size:24px;font-weight:800">Plano</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:2px">Treino gerado por IA com base no teu histórico</div>
-      </div>
 
-      <!-- Setup form (shown when no plan exists) -->
-      <div id="plano-setup" style="display:none;padding:20px;display:flex;flex-direction:column;gap:16px">
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:16px">
-          <div style="font-family:var(--font-display);font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">Configurar plano</div>
+      <!-- SETUP -->
+      <div id="plano-setup" style="display:none">
+        <div style="padding:16px 20px 8px">
+          <div style="font-family:var(--font-display);font-size:24px;font-weight:800">Plano de treino</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">Personalizado com base no teu histórico</div>
+        </div>
 
-          <div>
-            <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Objetivo</div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap" id="plano-objetivo-chips">
-              <button class="filter-chip active" onclick="selectObjetivo('melhorar forma',this)">Melhorar forma</button>
-              <button class="filter-chip" onclick="selectObjetivo('10km',this)">Preparar 10km</button>
-              <button class="filter-chip" onclick="selectObjetivo('meia maratona',this)">Meia maratona</button>
-              <button class="filter-chip" onclick="selectObjetivo('maratona',this)">Maratona</button>
+        <div style="padding:0 20px 24px;display:flex;flex-direction:column;gap:14px">
+
+          <!-- Objetivo tipo -->
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px">
+            <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Tipo de objetivo</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+                <input type="radio" name="plano-tipo" value="prova-pace" checked onchange="planoTipoChange(this.value)"
+                  style="accent-color:var(--accent);width:16px;height:16px">
+                <span style="font-size:13px">Prova com pace objetivo <span style="color:var(--muted);font-size:11px">(ex: 10km a 4:48/km)</span></span>
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+                <input type="radio" name="plano-tipo" value="prova-tempo" onchange="planoTipoChange(this.value)"
+                  style="accent-color:var(--accent);width:16px;height:16px">
+                <span style="font-size:13px">Prova com tempo objetivo <span style="color:var(--muted);font-size:11px">(ex: 10km em 48min)</span></span>
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+                <input type="radio" name="plano-tipo" value="pace-geral" onchange="planoTipoChange(this.value)"
+                  style="accent-color:var(--accent);width:16px;height:16px">
+                <span style="font-size:13px">Melhorar pace geral <span style="color:var(--muted);font-size:11px">(sem data definida)</span></span>
+              </label>
             </div>
           </div>
 
-          <div id="plano-data-wrap">
-            <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Data da prova (opcional)</div>
-            <input type="date" id="plano-data-prova"
-              style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:14px;color:var(--text);width:100%;box-sizing:border-box;font-family:var(--font-mono)">
-          </div>
+          <!-- Objetivo detalhes -->
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px" id="plano-obj-detalhes">
 
-          <div>
-            <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Dias disponíveis por semana</div>
-            <div style="display:flex;gap:8px" id="plano-dias-chips">
-              <button class="filter-chip" onclick="selectDias(2,this)">2</button>
-              <button class="filter-chip active" onclick="selectDias(3,this)">3</button>
-              <button class="filter-chip" onclick="selectDias(4,this)">4</button>
-              <button class="filter-chip" onclick="selectDias(5,this)">5</button>
+            <div id="plano-dist-wrap">
+              <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Distância da prova</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap" id="plano-dist-chips">
+                <button class="filter-chip" onclick="planoSelectDist(5,this)">5km</button>
+                <button class="filter-chip active" onclick="planoSelectDist(10,this)">10km</button>
+                <button class="filter-chip" onclick="planoSelectDist(21.1,this)">Meia</button>
+                <button class="filter-chip" onclick="planoSelectDist(42.2,this)">Maratona</button>
+              </div>
+            </div>
+
+            <div id="plano-data-wrap">
+              <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Data da prova</div>
+              <input type="date" id="plano-data-prova"
+                style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:14px;color:var(--text);width:100%;box-sizing:border-box;font-family:var(--font-mono)">
+            </div>
+
+            <div id="plano-pace-wrap">
+              <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Pace objetivo (min:ss /km)</div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <input type="number" id="plano-pace-min" min="3" max="9" placeholder="4" 
+                  style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:18px;color:var(--text);width:60px;text-align:center;font-family:var(--font-display);font-weight:800">
+                <span style="color:var(--muted);font-size:20px">:</span>
+                <input type="number" id="plano-pace-sec" min="0" max="59" placeholder="48"
+                  style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:18px;color:var(--text);width:60px;text-align:center;font-family:var(--font-display);font-weight:800">
+                <span style="color:var(--muted);font-size:13px">/km</span>
+              </div>
+            </div>
+
+            <div id="plano-tempo-wrap" style="display:none">
+              <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Tempo objetivo</div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <input type="number" id="plano-tempo-h" min="0" max="6" placeholder="0"
+                  style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:18px;color:var(--text);width:60px;text-align:center;font-family:var(--font-display);font-weight:800">
+                <span style="color:var(--muted);font-size:20px">h</span>
+                <input type="number" id="plano-tempo-min" min="0" max="59" placeholder="48"
+                  style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:18px;color:var(--text);width:60px;text-align:center;font-family:var(--font-display);font-weight:800">
+                <span style="color:var(--muted);font-size:13px">min</span>
+              </div>
             </div>
           </div>
 
-          <div>
-            <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Semanas de plano</div>
-            <div style="display:flex;gap:8px" id="plano-semanas-chips">
-              <button class="filter-chip" onclick="selectSemanas(4,this)">4 sem</button>
-              <button class="filter-chip active" onclick="selectSemanas(8,this)">8 sem</button>
-              <button class="filter-chip" onclick="selectSemanas(12,this)">12 sem</button>
+          <!-- Dias da semana -->
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px">
+            <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Modo de dias</div>
+            <div style="display:flex;gap:8px;margin-bottom:12px">
+              <button class="filter-chip active" id="btn-modo-num" onclick="planoModoDias('num')">Nº de dias</button>
+              <button class="filter-chip" id="btn-modo-esp" onclick="planoModoDias('especificos')">Dias específicos</button>
+            </div>
+            <div id="plano-num-dias-wrap">
+              <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Dias por semana</div>
+              <div style="display:flex;gap:8px" id="plano-num-chips">
+                <button class="filter-chip" onclick="planoSelectNumDias(2,this)">2×</button>
+                <button class="filter-chip active" onclick="planoSelectNumDias(3,this)">3×</button>
+                <button class="filter-chip" onclick="planoSelectNumDias(4,this)">4×</button>
+                <button class="filter-chip" onclick="planoSelectNumDias(5,this)">5×</button>
+              </div>
+            </div>
+            <div id="plano-esp-dias-wrap" style="display:none">
+              <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Seleciona os dias</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap" id="plano-dias-semana-chips">
+                <button class="filter-chip" onclick="planoToggleDia(1,this)">Seg</button>
+                <button class="filter-chip" onclick="planoToggleDia(2,this)">Ter</button>
+                <button class="filter-chip" onclick="planoToggleDia(3,this)">Qua</button>
+                <button class="filter-chip" onclick="planoToggleDia(4,this)">Qui</button>
+                <button class="filter-chip" onclick="planoToggleDia(5,this)">Sex</button>
+                <button class="filter-chip" onclick="planoToggleDia(6,this)">Sáb</button>
+                <button class="filter-chip" onclick="planoToggleDia(0,this)">Dom</button>
+              </div>
             </div>
           </div>
 
-          <button onclick="gerarPlano()" id="btn-gerar-plano"
-            style="background:var(--accent);color:#0a0a0f;border:none;border-radius:12px;padding:14px;font-family:var(--font-display);font-size:14px;font-weight:800;cursor:pointer;letter-spacing:0.5px;margin-top:4px">
-            ✦ Gerar plano com IA
+          <!-- Gerar -->
+          <button onclick="gerarPlano()"
+            style="background:var(--accent);color:#0a0a0f;border:none;border-radius:12px;padding:14px;font-family:var(--font-display);font-size:15px;font-weight:800;cursor:pointer;letter-spacing:0.5px">
+            Gerar plano personalizado
           </button>
         </div>
       </div>
 
-      <!-- Loading state -->
-      <div id="plano-loading" style="display:none;padding:60px 20px;text-align:center">
-        <div style="font-size:32px;margin-bottom:16px">✦</div>
-        <div style="font-family:var(--font-display);font-size:16px;font-weight:700;color:var(--accent)">A gerar o teu plano...</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:8px">A IA está a analisar o teu histórico</div>
-      </div>
-
-      <!-- Plan view -->
+      <!-- PLANO ATIVO -->
       <div id="plano-content" style="display:none">
-        <!-- Plan header -->
-        <div style="padding:16px 20px 0;display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+        <div style="padding:16px 20px 12px;display:flex;align-items:flex-start;justify-content:space-between">
           <div>
-            <div style="font-family:var(--font-display);font-size:14px;font-weight:700;color:var(--accent)" id="plano-titulo"></div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px" id="plano-subtitulo"></div>
+            <div style="font-family:var(--font-display);font-size:22px;font-weight:800" id="plano-titulo">—</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px" id="plano-subtitulo">—</div>
           </div>
-          <div style="display:flex;gap:8px;flex-shrink:0">
-            <button onclick="ajustarPlano()" style="font-size:10px;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:6px 12px;border-radius:8px;cursor:pointer;font-family:var(--font-display);font-weight:700">↻ Ajustar</button>
-            <button onclick="resetarPlano()" style="font-size:10px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:8px;cursor:pointer;font-family:var(--font-display);font-weight:700">Novo</button>
-          </div>
+          <button onclick="resetarPlano()"
+            style="font-size:11px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:8px;cursor:pointer;font-family:var(--font-display);font-weight:700;flex-shrink:0">
+            Novo plano
+          </button>
         </div>
 
-        <!-- This week highlight -->
-        <div style="margin:16px 20px 0;background:linear-gradient(135deg,#1a1a10,#0f1a0a);border:1px solid rgba(232,255,71,.2);border-radius:16px;padding:16px" id="plano-semana-atual">
+        <!-- Tabs: semana atual / plano completo -->
+        <div class="tab-row" id="plano-tabs">
+          <button class="tab-btn active" onclick="planoShowTab('semana',this)">Esta semana</button>
+          <button class="tab-btn" onclick="planoShowTab('completo',this)">Plano completo</button>
         </div>
 
-        <!-- All weeks -->
-        <div style="padding:16px 20px 0">
-          <div style="font-family:var(--font-display);font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:12px">Plano completo</div>
-        </div>
-        <div id="plano-semanas-list" style="padding:0 20px 24px;display:flex;flex-direction:column;gap:10px"></div>
+        <!-- Esta semana -->
+        <div id="plano-tab-semana" style="padding:16px 20px 24px;display:flex;flex-direction:column;gap:10px"></div>
+
+        <!-- Plano completo -->
+        <div id="plano-tab-completo" style="display:none;padding:16px 20px 24px;display:none;flex-direction:column;gap:10px"></div>
       </div>
     </div>
     </div>
@@ -3960,303 +4016,506 @@ async function handleStravaCallback(code) {
 }
 
 // ══════════════════════════════════════════
-//  PLANO DE TREINO (IA)
+//  PLANO DE TREINO
 // ══════════════════════════════════════════
-let planoState = {
-  objetivo: 'melhorar forma',
-  dias: 3,
-  semanas: 8,
+
+// ── State ──
+let planoConfig = {
+  tipo: 'prova-pace',   // 'prova-pace' | 'prova-tempo' | 'pace-geral'
+  dist: 10,             // km
   dataProva: null,
-  plano: null,       // { geradoEm, objetivo, semanas: [{num, treinos:[{dia,tipo,descricao,detalhes}], resumo}] }
-  ajustesPendentes: false,
+  paceMin: null, paceSec: null,   // objetivo pace
+  tempoH: 0, tempoMin: null,      // objetivo tempo
+  modoDias: 'num',      // 'num' | 'especificos'
+  numDias: 3,
+  diasEspecificos: [],  // [0-6] 0=dom
 };
+let planoData = null;   // generated plan object
 
-function showPage_plano() {
-  // Called when plano tab is opened
-  if (planoState.plano) {
-    renderPlanoContent();
-  } else {
-    document.getElementById('plano-setup').style.display = 'flex';
-    document.getElementById('plano-loading').style.display = 'none';
-    document.getElementById('plano-content').style.display = 'none';
-  }
+// ── Form controls ──
+function planoTipoChange(val) {
+  planoConfig.tipo = val;
+  const isPace  = val === 'prova-pace';
+  const isTempo = val === 'prova-tempo';
+  const isGeral = val === 'pace-geral';
+  document.getElementById('plano-dist-wrap').style.display  = isGeral ? 'none' : '';
+  document.getElementById('plano-data-wrap').style.display  = isGeral ? 'none' : '';
+  document.getElementById('plano-pace-wrap').style.display  = isTempo ? 'none' : '';
+  document.getElementById('plano-tempo-wrap').style.display = isPace  ? 'none' : '';
 }
 
-function selectObjetivo(val, el) {
-  planoState.objetivo = val;
-  el.closest('#plano-objetivo-chips').querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
-  el.classList.add('active');
-  // Show/hide date field
-  const dateWrap = document.getElementById('plano-data-wrap');
-  dateWrap.style.display = val === 'melhorar forma' ? 'none' : '';
-}
-
-function selectDias(val, el) {
-  planoState.dias = val;
-  el.closest('#plano-dias-chips').querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+function planoSelectDist(val, el) {
+  planoConfig.dist = val;
+  el.closest('#plano-dist-chips').querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
 }
 
-function selectSemanas(val, el) {
-  planoState.semanas = val;
-  el.closest('#plano-semanas-chips').querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+function planoModoDias(modo) {
+  planoConfig.modoDias = modo;
+  document.getElementById('plano-num-dias-wrap').style.display  = modo === 'num' ? '' : 'none';
+  document.getElementById('plano-esp-dias-wrap').style.display  = modo === 'especificos' ? '' : 'none';
+  document.getElementById('btn-modo-num').classList.toggle('active', modo === 'num');
+  document.getElementById('btn-modo-esp').classList.toggle('active', modo === 'especificos');
+}
+
+function planoSelectNumDias(val, el) {
+  planoConfig.numDias = val;
+  el.closest('#plano-num-chips').querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
 }
 
-function buildContextoHistorico() {
-  if (!runs.length) return 'Utilizador sem histórico de corridas ainda.';
-  const recentes = [...runs].sort((a,b) => new Date(b.date)-new Date(a.date)).slice(0, 20);
-  const totalKm = runs.reduce((s,r) => s+r.dist, 0);
-  const avgPaceAll = runs.reduce((s,r) => s+r.secs, 0) / runs.reduce((s,r) => s+r.dist, 0);
-  // Weekly volume last 8 weeks
+function planoToggleDia(val, el) {
+  const idx = planoConfig.diasEspecificos.indexOf(val);
+  if (idx === -1) planoConfig.diasEspecificos.push(val);
+  else planoConfig.diasEspecificos.splice(idx, 1);
+  el.classList.toggle('active', planoConfig.diasEspecificos.includes(val));
+}
+
+function planoShowTab(tab, btn) {
+  document.getElementById('plano-tab-semana').style.display   = tab === 'semana'   ? 'flex' : 'none';
+  document.getElementById('plano-tab-completo').style.display = tab === 'completo' ? 'flex' : 'none';
+  document.querySelectorAll('#plano-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+}
+
+// ── Athlete analysis ──
+function analisarCorredor() {
+  if (!runs.length) return null;
+  const sorted = [...runs].sort((a,b) => new Date(a.date)-new Date(b.date));
+  const recent = sorted.slice(-20);
+
+  // Average weekly volume (last 8 weeks)
   const now = new Date();
-  const weekVols = [];
+  let weekVols = [];
   for (let w = 0; w < 8; w++) {
-    const wStart = new Date(now); wStart.setDate(now.getDate() - ((now.getDay()+6)%7) - w*7); wStart.setHours(0,0,0,0);
-    const wEnd = new Date(wStart); wEnd.setDate(wStart.getDate()+6); wEnd.setHours(23,59,59,999);
-    const wKm = runs.filter(r => { const d=new Date(r.date); return d>=wStart&&d<=wEnd; }).reduce((s,r)=>s+r.dist,0);
-    weekVols.push(Math.round(wKm*10)/10);
+    const wStart = new Date(now); wStart.setDate(now.getDate()-((now.getDay()+6)%7)-w*7); wStart.setHours(0,0,0,0);
+    const wEnd   = new Date(wStart); wEnd.setDate(wStart.getDate()+6); wEnd.setHours(23,59,59,999);
+    const km = runs.filter(r=>{const d=new Date(r.date);return d>=wStart&&d<=wEnd;}).reduce((s,r)=>s+r.dist,0);
+    if (km > 0) weekVols.push(km);
   }
-  const avgWeekly = weekVols.reduce((a,b)=>a+b,0) / weekVols.filter(v=>v>0).length || 0;
-  const bestPace = runs.filter(r=>r.bestSplit).reduce((best,r) => r.bestSplit < (best||9999) ? r.bestSplit : best, null);
-  const recentAvgPace = recentes.slice(0,8).reduce((s,r)=>s+r.secs,0) / recentes.slice(0,8).reduce((s,r)=>s+r.dist,0);
-  return `Histórico: ${runs.length} corridas, ${Math.round(totalKm)}km total.
-Volume médio semanal (últimas 8 semanas): ${avgWeekly.toFixed(1)}km/semana. Volumes: ${weekVols.join(', ')}km.
-Ritmo médio recente (últimas 8 corridas): ${fmtPace(recentAvgPace*1, 1)}/km.
-Ritmo médio geral: ${fmtPace(avgPaceAll*1, 1)}/km.
-Melhor km: ${bestPace ? fmtPace(bestPace, 1) : 'desconhecido'}/km.
-Últimas corridas: ${recentes.slice(0,5).map(r=>`${r.dist.toFixed(1)}km @ ${fmtPace(r.secs,r.dist)}/km`).join(', ')}.`;
+  const avgWeeklyKm = weekVols.length ? weekVols.reduce((a,b)=>a+b,0)/weekVols.length : 0;
+
+  // Recent pace (secs/km) — last 8 runs with pace
+  const recentPaces = recent.filter(r=>r.secs&&r.dist>2).slice(-8).map(r=>r.secs/r.dist);
+  const avgPaceSec = recentPaces.length ? recentPaces.reduce((a,b)=>a+b,0)/recentPaces.length : 360;
+
+  // Best split as proxy for threshold/speed
+  const bestSplits = runs.filter(r=>r.bestSplit).map(r=>r.bestSplit);
+  const bestSplit  = bestSplits.length ? Math.min(...bestSplits) : avgPaceSec * 0.85;
+
+  // Long run capability (longest recent run)
+  const longestRun = Math.max(...recent.map(r=>r.dist), 0);
+
+  // Trend: is pace improving?
+  let trend = 0;
+  if (recentPaces.length >= 4) {
+    const half = Math.floor(recentPaces.length/2);
+    const older = recentPaces.slice(0,half).reduce((a,b)=>a+b,0)/half;
+    const newer = recentPaces.slice(-half).reduce((a,b)=>a+b,0)/half;
+    trend = older - newer; // positive = improving
+  }
+
+  return { avgWeeklyKm, avgPaceSec, bestSplit, longestRun, trend, recentPaces, weekVols };
 }
 
-async function gerarPlano(isAjuste = false) {
-  const dataProva = document.getElementById('plano-data-prova')?.value;
-  planoState.dataProva = dataProva || null;
+// ── Pace zones from easy pace ──
+function calcZones(easyPace) {
+  // easyPace in secs/km
+  return {
+    easy:      Math.round(easyPace),               // Z1 aerobic base
+    tempo:     Math.round(easyPace * 0.88),        // Z3 threshold/limiar
+    interval:  Math.round(easyPace * 0.80),        // Z4 VO2max / series
+    race:      Math.round(easyPace * 0.85),        // Z3-4 race pace
+    longRun:   Math.round(easyPace * 1.08),        // Z1-2 long run
+  };
+}
 
-  document.getElementById('plano-setup').style.display = 'none';
-  document.getElementById('plano-loading').style.display = 'block';
-  document.getElementById('plano-content').style.display = 'none';
+// ── Determine easy pace from objective or history ──
+function getTargetPace(athlete) {
+  const cfg = planoConfig;
+  let targetPaceSec = null;
 
-  const contexto = buildContextoHistorico();
-  const hoje = new Date().toISOString().split('T')[0];
-
-  let ajusteContext = '';
-  if (isAjuste && planoState.plano) {
-    // Build what was done vs planned last week
-    const semanaAtual = getCurrentPlanWeek();
-    if (semanaAtual > 0 && planoState.plano.semanas[semanaAtual-1]) {
-      const semAnt = planoState.plano.semanas[semanaAtual-1];
-      const now = new Date();
-      const dow = (now.getDay()+6)%7;
-      const monday = new Date(now); monday.setDate(now.getDate()-dow-7); monday.setHours(0,0,0,0);
-      const sunday = new Date(monday); sunday.setDate(monday.getDate()+6); sunday.setHours(23,59,59,999);
-      const feitaSemana = runs.filter(r=>{const d=new Date(r.date);return d>=monday&&d<=sunday;});
-      ajusteContext = `\n\nSemana anterior — planeado: ${semAnt.treinos.length} treinos (${semAnt.resumo}). Executado: ${feitaSemana.length} corridas, ${feitaSemana.reduce((s,r)=>s+r.dist,0).toFixed(1)}km, ritmos: ${feitaSemana.map(r=>fmtPace(r.secs,r.dist)+'/km').join(', ')}.`;
-    }
+  if (cfg.tipo === 'prova-pace') {
+    const m = parseInt(document.getElementById('plano-pace-min').value) || 0;
+    const s = parseInt(document.getElementById('plano-pace-sec').value) || 0;
+    if (m > 0) targetPaceSec = m * 60 + s;
+  } else if (cfg.tipo === 'prova-tempo') {
+    const h   = parseInt(document.getElementById('plano-tempo-h').value)   || 0;
+    const min = parseInt(document.getElementById('plano-tempo-min').value) || 0;
+    const totalSecs = h * 3600 + min * 60;
+    if (totalSecs > 0 && cfg.dist > 0) targetPaceSec = totalSecs / cfg.dist;
   }
 
-  const prompt = `És um treinador de corrida de elite. Gera um plano de treino estruturado em JSON.
+  // Easy pace = race pace / 0.85, or use athlete's current easy pace
+  if (targetPaceSec) {
+    const easyFromTarget = targetPaceSec / 0.85;
+    // Blend with current fitness — don't generate impossible plan
+    const easyFromHistory = athlete.avgPaceSec * 1.10;
+    return Math.max(easyFromTarget, easyFromHistory * 0.95);
+  }
+  return athlete.avgPaceSec * 1.10; // 10% easier than current avg
+}
 
-DADOS DO ATLETA:
-${contexto}${ajusteContext}
+// ── Workout builder ──
+function buildWorkout(type, zones, weekNum, totalWeeks, baseDist) {
+  // type: 'A'=continuo, 'B1'=series, 'B2'=limiar, 'C'=longo
+  const p = s => fmtPace(s, 1);
+  const prog = weekNum / totalWeeks; // 0..1
 
-OBJETIVO: ${planoState.objetivo}${planoState.dataProva ? ` — prova em ${planoState.dataProva}` : ''}
-DIAS POR SEMANA: ${planoState.dias}
-SEMANAS: ${planoState.semanas}
-DATA DE HOJE: ${hoje}
-${isAjuste ? 'NOTA: Este é um ajuste ao plano existente com base na semana anterior. Mantém a estrutura mas ajusta intensidade/volume conforme necessário.' : ''}
-
-Responde APENAS com JSON válido, sem texto antes ou depois, sem markdown:
-{
-  "titulo": "string curto descritivo",
-  "subtitulo": "ex: 8 semanas · 3x/semana · objetivo 10km",
-  "semanas": [
-    {
-      "num": 1,
-      "resumo": "ex: Adaptação — volume leve",
-      "foco": "ex: Aeróbio base",
-      "kmTotal": 20.5,
-      "treinos": [
-        {
-          "diaNum": 1,
-          "diaNome": "Segunda",
-          "tipo": "A",
-          "nome": "Contínuo leve",
-          "descricao": "Corrida contínua a ritmo confortável",
-          "detalhes": [
-            {"segmento": "Aquecimento", "dist": "1.5km", "ritmo": "5:50/km"},
-            {"segmento": "Contínuo", "dist": "5km", "ritmo": "5:30/km"},
-            {"segmento": "Retorno", "dist": "0.5km", "ritmo": "6:00/km"}
-          ],
-          "distTotal": "7km",
-          "duracaoMin": 40
-        }
+  if (type === 'C') {
+    // Long run: progressively longer, taper last 2 weeks
+    const taper = weekNum > totalWeeks - 2 ? 0.85 : 1;
+    const dist = Math.round((baseDist * (1.2 + prog * 0.6) * taper) * 2) / 2;
+    const pace = zones.longRun;
+    return {
+      tipo: 'C', nome: 'Corrida longa',
+      descricao: `Ritmo confortável e constante. Foca na resistência, não na velocidade.`,
+      distTotal: `${dist}km`,
+      duracaoMin: Math.round(dist * pace / 60),
+      segmentos: [
+        { seg: 'Aquecimento',   dist: '1km',            ritmo: p(zones.easy) },
+        { seg: 'Longo',        dist: `${dist - 1.5}km`, ritmo: p(zones.longRun) },
+        { seg: 'Retorno',      dist: '0.5km',           ritmo: p(zones.easy) },
       ]
-    }
-  ]
-}
-
-Tipos de treino: A=Contínuo, B1=Séries/Intervalos, B2=Limiar, C=Longo.
-Para B1 especifica: número de séries, distância de cada série, ritmo objetivo, recuperação.
-Os ritmos devem ser realistas baseados no histórico do atleta.
-Distribui os dias de treino de forma sensata ao longo da semana.`;
-
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 4000,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-    const data = await res.json();
-    const text = data.content?.[0]?.text || '';
-    // Strip any markdown fences just in case
-    const clean = text.replace(/```json|```/g, '').trim();
-    const plano = JSON.parse(clean);
-    planoState.plano = { ...plano, geradoEm: new Date().toISOString(), objetivo: planoState.objetivo, diasPorSemana: planoState.dias };
-    await savePlano();
-    renderPlanoContent();
-  } catch(e) {
-    console.error('Erro a gerar plano:', e);
-    document.getElementById('plano-loading').style.display = 'none';
-    document.getElementById('plano-setup').style.display = 'flex';
-    showToast('Erro ao gerar plano. Tenta novamente.', 4000);
+    };
   }
+
+  if (type === 'B2') {
+    // Threshold/Limiar: 20-40min at tempo pace
+    const tempoMin = Math.round(20 + prog * 20);
+    const tempoKm  = Math.round((tempoMin / (zones.tempo / 60)) * 10) / 10;
+    const dist = tempoKm + 2;
+    return {
+      tipo: 'B2', nome: 'Treino de limiar',
+      descricao: `${tempoMin} minutos a ritmo de limiar. Deves conseguir falar frases curtas.`,
+      distTotal: `${Math.round(dist * 10) / 10}km`,
+      duracaoMin: Math.round(dist * zones.tempo / 60),
+      segmentos: [
+        { seg: 'Aquecimento', dist: '1km',          ritmo: p(zones.easy) },
+        { seg: 'Limiar',      dist: `${tempoKm}km`, ritmo: p(zones.tempo) },
+        { seg: 'Retorno',     dist: '1km',           ritmo: p(zones.easy) },
+      ]
+    };
+  }
+
+  if (type === 'B1') {
+    // Intervals: 4-8 x 800m or 400m depending on week
+    const nSeries = Math.min(4 + Math.floor(prog * 4), 8);
+    const distSerie = weekNum <= totalWeeks / 2 ? '600m' : '800m';
+    const distSerieKm = weekNum <= totalWeeks / 2 ? 0.6 : 0.8;
+    const recup = '400m';
+    const totalKm = 1.5 + nSeries * (distSerieKm + 0.4);
+    return {
+      tipo: 'B1', nome: 'Séries de velocidade',
+      descricao: `${nSeries}× ${distSerie} a ritmo de intervalo com recuperação de ${recup} a trote.`,
+      distTotal: `${Math.round(totalKm * 10) / 10}km`,
+      duracaoMin: Math.round(totalKm * zones.interval / 60 + nSeries * 2),
+      segmentos: [
+        { seg: 'Aquecimento',            dist: '1km',                   ritmo: p(zones.easy) },
+        { seg: `${nSeries}× ${distSerie}`, dist: `+ ${recup} recup`,   ritmo: p(zones.interval) },
+        { seg: 'Retorno',                dist: '0.5km',                 ritmo: p(zones.easy) },
+      ]
+    };
+  }
+
+  // A = Contínuo
+  const dist = Math.round((baseDist * (0.9 + prog * 0.3)) * 2) / 2;
+  const useRace = prog > 0.4;
+  return {
+    tipo: 'A', nome: useRace ? 'Contínuo a ritmo de prova' : 'Contínuo aeróbio',
+    descricao: useRace
+      ? `Mantém o ritmo objetivo de prova de forma controlada.`
+      : `Corrida contínua a ritmo confortável. Foca na consistência.`,
+    distTotal: `${dist}km`,
+    duracaoMin: Math.round(dist * (useRace ? zones.race : zones.easy) / 60),
+    segmentos: [
+      { seg: 'Aquecimento', dist: '1km',            ritmo: p(zones.easy) },
+      { seg: 'Contínuo',    dist: `${dist - 1.5}km`, ritmo: p(useRace ? zones.race : zones.easy) },
+      { seg: 'Retorno',     dist: '0.5km',           ritmo: p(zones.easy) },
+    ]
+  };
 }
 
+// ── Day names ──
+const DIAS_SEMANA = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+const DIAS_FULL   = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+
+// ── Distribute training days across week ──
+function distribuirDias(numDias, diasEspecificos, modoDias) {
+  if (modoDias === 'especificos' && diasEspecificos.length > 0) {
+    return diasEspecificos.sort((a,b) => a-b);
+  }
+  // Auto distribute with rest between hard days
+  const templates = {
+    2: [2, 6],       // ter, sab
+    3: [2, 4, 6],    // ter, qui, sab
+    4: [1, 3, 5, 6], // seg, qua, sex, sab
+    5: [1, 2, 4, 5, 6],
+  };
+  return templates[Math.min(numDias, 5)] || templates[3];
+}
+
+// ── Assign workout types to days ──
+function assignWorkoutTypes(days, weekNum, totalWeeks) {
+  const n = days.length;
+  const isTaper = weekNum > totalWeeks - 2;
+
+  if (n === 2) return ['A', 'C'];
+  if (n === 3) {
+    if (isTaper) return ['A', 'A', 'C'];
+    return weekNum % 2 === 0 ? ['B1', 'B2', 'C'] : ['A', 'B2', 'C'];
+  }
+  if (n === 4) {
+    if (isTaper) return ['A', 'A', 'B2', 'C'];
+    return ['A', 'B1', 'B2', 'C'];
+  }
+  // 5 days
+  if (isTaper) return ['A', 'A', 'B2', 'A', 'C'];
+  return ['A', 'B1', 'A', 'B2', 'C'];
+}
+
+// ── Generate full plan ──
+function gerarPlano() {
+  const athlete = analisarCorredor();
+  if (!athlete) { showToast('Sem corridas suficientes para gerar um plano.', 4000); return; }
+
+  const cfg = planoConfig;
+
+  // Validate days
+  const dias = distribuirDias(cfg.numDias, cfg.diasEspecificos, cfg.modoDias);
+  if (!dias.length) { showToast('Seleciona pelo menos 1 dia da semana.', 3000); return; }
+
+  // Determine number of weeks
+  let numSemanas = 8;
+  if (cfg.tipo !== 'pace-geral' && cfg.dataProva) {
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const prova = new Date(document.getElementById('plano-data-prova').value);
+    const diffDays = Math.ceil((prova - hoje) / 86400000);
+    numSemanas = Math.max(2, Math.min(24, Math.ceil(diffDays / 7)));
+  }
+
+  const easyPace = getTargetPace(athlete);
+  const zones    = calcZones(easyPace);
+  const baseDist = Math.max(athlete.avgWeeklyKm / Math.max(dias.length, 1), 4);
+
+  // Build title
+  let titulo = 'Melhorar pace geral';
+  let subtitulo = `${dias.length}× por semana · ${numSemanas} semanas`;
+  if (cfg.tipo === 'prova-pace') {
+    const m = parseInt(document.getElementById('plano-pace-min').value)||0;
+    const s = parseInt(document.getElementById('plano-pace-sec').value)||0;
+    titulo = `${cfg.dist}km a ${m}:${String(s).padStart(2,'0')}/km`;
+  } else if (cfg.tipo === 'prova-tempo') {
+    const h = parseInt(document.getElementById('plano-tempo-h').value)||0;
+    const min = parseInt(document.getElementById('plano-tempo-min').value)||0;
+    titulo = `${cfg.dist}km em ${h ? h+'h' : ''}${min}min`;
+  }
+  if (cfg.dataProva && cfg.tipo !== 'pace-geral') {
+    const d = new Date(document.getElementById('plano-data-prova').value);
+    subtitulo = `Prova: ${d.toLocaleDateString('pt-PT',{day:'2-digit',month:'short'})} · ${dias.length}× semana`;
+  }
+
+  // Build weeks
+  const semanas = [];
+  // Find the Monday of the current week as start
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const dow = (hoje.getDay()+6)%7;
+  const startMonday = new Date(hoje); startMonday.setDate(hoje.getDate()-dow);
+
+  for (let w = 0; w < numSemanas; w++) {
+    const types = assignWorkoutTypes(dias, w+1, numSemanas);
+    const treinos = dias.map((dia, i) => {
+      const workout = buildWorkout(types[i], zones, w+1, numSemanas, baseDist);
+      // Calculate actual date for this training day
+      const wMonday = new Date(startMonday); wMonday.setDate(startMonday.getDate() + w*7);
+      // dia: 0=sun,1=mon,...,6=sat → offset from monday
+      const offset = dia === 0 ? 6 : dia - 1;
+      const date = new Date(wMonday); date.setDate(wMonday.getDate() + offset);
+      return {
+        ...workout,
+        dia,
+        diaNome: DIAS_FULL[dia],
+        date: date.toISOString().split('T')[0],
+      };
+    });
+
+    const kmTotal = treinos.reduce((s,t) => {
+      const d = parseFloat(t.distTotal) || 0; return s+d;
+    }, 0);
+
+    const isTaper = w >= numSemanas - 2;
+    const resumos = ['Adaptação','Base aeróbia','Construção','Construção+','Desenvolvimento',
+                     'Intensificação','Pico de forma','Taper','Redução final'];
+    semanas.push({
+      num: w+1,
+      resumo: isTaper ? (w===numSemanas-1?'Redução final':'Taper') : resumos[Math.min(w, resumos.length-3)],
+      kmTotal: Math.round(kmTotal*10)/10,
+      treinos,
+    });
+  }
+
+  planoData = {
+    titulo, subtitulo,
+    geradoEm: new Date().toISOString(),
+    config: { ...cfg, dias },
+    zones,
+    semanas,
+  };
+
+  savePlano();
+  renderPlanoContent();
+}
+
+// ── Get current week index ──
 function getCurrentPlanWeek() {
-  if (!planoState.plano?.geradoEm) return 1;
-  const gerado = new Date(planoState.plano.geradoEm);
-  const now = new Date();
-  const diffDays = Math.floor((now - gerado) / (1000*60*60*24));
-  return Math.min(Math.floor(diffDays / 7) + 1, planoState.plano.semanas.length);
+  if (!planoData?.geradoEm) return 0;
+  const gerado = new Date(planoData.geradoEm); gerado.setHours(0,0,0,0);
+  const dow = (gerado.getDay()+6)%7;
+  const firstMonday = new Date(gerado); firstMonday.setDate(gerado.getDate()-dow);
+  const now = new Date(); now.setHours(0,0,0,0);
+  const diffDays = Math.floor((now - firstMonday)/86400000);
+  return Math.min(Math.max(Math.floor(diffDays/7), 0), planoData.semanas.length-1);
 }
 
+// ── Type color ──
 function getTipoColor(tipo) {
-  if (tipo === 'B1') return 'var(--accent)';
-  if (tipo === 'B2') return 'var(--accent2)';
-  if (tipo === 'C') return '#60a5fa';
+  if (tipo==='B1') return 'var(--accent)';
+  if (tipo==='B2') return 'var(--accent2)';
+  if (tipo==='C')  return '#60a5fa';
   return 'var(--success)';
 }
 
+// ── Check if run was done for a training day ──
+function treinoFoiFeito(treinoDate) {
+  // Check if there's a run within ±1 day of the planned date
+  const d = new Date(treinoDate); d.setHours(0,0,0,0);
+  return runs.some(r => {
+    const rd = new Date(r.date); rd.setHours(0,0,0,0);
+    return Math.abs(rd-d) <= 86400000;
+  });
+}
+
+// ── Render a single workout card ──
+function renderTreinoCard(t, showDate=true) {
+  const done = treinoFoiFeito(t.date);
+  const isToday = t.date === new Date().toISOString().split('T')[0];
+  const isPast  = new Date(t.date) < new Date(new Date().toISOString().split('T')[0]);
+  const cor = getTipoColor(t.tipo);
+  const dateFmt = new Date(t.date).toLocaleDateString('pt-PT',{weekday:'short',day:'2-digit',month:'short'});
+  
+  return `
+  <div style="background:var(--surface);border:1px solid ${isToday?'rgba(232,255,71,.4)':done?'rgba(74,222,128,.2)':'var(--border)'};border-radius:14px;padding:14px 16px;${isPast&&!done?'opacity:.6':''}">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:34px;height:34px;border-radius:9px;background:${cor}22;border:1px solid ${cor}44;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <span style="font-family:var(--font-display);font-size:11px;font-weight:800;color:${cor}">${t.tipo}</span>
+        </div>
+        <div>
+          <div style="font-family:var(--font-display);font-size:14px;font-weight:800;${isToday?'color:var(--accent)':''}">${t.nome}${isToday?' 📍':done?' ✓':''}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:1px">${showDate?dateFmt+' · ':''}${t.distTotal} · ~${t.duracaoMin}min</div>
+        </div>
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">${t.descricao}</div>
+    <div style="background:var(--surface2);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:6px">
+      ${t.segmentos.map(s=>`
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:11px;color:var(--muted);min-width:90px;flex-shrink:0">${s.seg}</span>
+          <span style="font-size:11px;color:var(--text)">${s.dist}</span>
+          <span style="font-size:12px;font-family:var(--font-display);font-weight:700;color:${cor};margin-left:auto">${s.ritmo}</span>
+        </div>
+      `).join('')}
+    </div>
+  </div>`;
+}
+
+// ── Render plan ──
 function renderPlanoContent() {
-  document.getElementById('plano-setup').style.display = 'none';
-  document.getElementById('plano-loading').style.display = 'none';
+  if (!planoData) { showPage_plano(); return; }
+
+  document.getElementById('plano-setup').style.display   = 'none';
   document.getElementById('plano-content').style.display = 'block';
+  document.getElementById('plano-titulo').textContent    = planoData.titulo;
+  document.getElementById('plano-subtitulo').textContent = planoData.subtitulo;
 
-  const p = planoState.plano;
-  if (!p) return;
+  const semIdx = getCurrentPlanWeek();
 
-  document.getElementById('plano-titulo').textContent = p.titulo || 'Plano de treino';
-  document.getElementById('plano-subtitulo').textContent = p.subtitulo || '';
-
-  const semAtual = getCurrentPlanWeek();
-
-  // This week highlight
-  const semDados = p.semanas?.[semAtual - 1];
-  const semEl = document.getElementById('plano-semana-atual');
-  if (semDados) {
-    // Check what was done this week
-    const now = new Date();
-    const dow = (now.getDay()+6)%7;
-    const monday = new Date(now); monday.setDate(now.getDate()-dow); monday.setHours(0,0,0,0);
-    const sunday = new Date(monday); sunday.setDate(monday.getDate()+6); sunday.setHours(23,59,59,999);
-    const feitas = runs.filter(r=>{const d=new Date(r.date);return d>=monday&&d<=sunday;});
+  // ── Esta semana ──
+  const semana = planoData.semanas[semIdx];
+  const semEl = document.getElementById('plano-tab-semana');
+  if (semana) {
+    const hoje = new Date().toISOString().split('T')[0];
+    const feitasSemana = semana.treinos.filter(t => treinoFoiFeito(t.date)).length;
 
     semEl.innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div style="background:linear-gradient(135deg,#111810,#0a0a0f);border:1px solid rgba(232,255,71,.2);border-radius:14px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between">
         <div>
-          <div style="font-family:var(--font-display);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--accent)">Semana ${semAtual} de ${p.semanas.length}</div>
-          <div style="font-family:var(--font-display);font-size:16px;font-weight:800;margin-top:2px">${semDados.resumo}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px">${semDados.foco || ''} · ${semDados.kmTotal}km previstos</div>
+          <div style="font-family:var(--font-display);font-size:12px;font-weight:700;color:var(--accent);letter-spacing:0.5px">SEMANA ${semana.num} DE ${planoData.semanas.length}</div>
+          <div style="font-family:var(--font-display);font-size:16px;font-weight:800;margin-top:2px">${semana.resumo}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">${semana.kmTotal}km previstos</div>
         </div>
         <div style="text-align:right">
-          <div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--accent)">${feitas.length}<span style="font-size:13px;color:var(--muted);font-weight:400">/${semDados.treinos.length}</span></div>
+          <div style="font-family:var(--font-display);font-size:28px;font-weight:800;color:var(--accent);line-height:1">${feitasSemana}<span style="font-size:14px;color:var(--muted);font-weight:400">/${semana.treinos.length}</span></div>
           <div style="font-size:10px;color:var(--muted)">treinos feitos</div>
         </div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:8px">
-        ${semDados.treinos.map((t,i) => `
-          <div style="background:rgba(0,0,0,.3);border-radius:10px;padding:12px;display:flex;gap:12px;align-items:flex-start">
-            <div style="width:32px;height:32px;border-radius:8px;background:${getTipoColor(t.tipo)}22;border:1px solid ${getTipoColor(t.tipo)}44;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-              <span style="font-family:var(--font-display);font-size:11px;font-weight:800;color:${getTipoColor(t.tipo)}">${t.tipo}</span>
-            </div>
-            <div style="flex:1;min-width:0">
-              <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
-                <div style="font-family:var(--font-display);font-size:13px;font-weight:700">${t.diaNome} — ${t.nome}</div>
-                <div style="font-size:11px;color:var(--muted);flex-shrink:0">${t.distTotal}</div>
-              </div>
-              <div style="font-size:11px;color:var(--muted);margin-top:2px">${t.descricao}</div>
-              <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">
-                ${(t.detalhes||[]).map(d => `
-                  <div style="display:flex;gap:8px;font-size:11px">
-                    <span style="color:var(--muted);width:80px;flex-shrink:0">${d.segmento}</span>
-                    <span style="color:var(--text)">${d.dist}</span>
-                    <span style="color:var(--accent2);margin-left:auto">${d.ritmo}</span>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          </div>
-        `).join('')}
-      </div>`;
+      ${semana.treinos.map(t => renderTreinoCard(t, true)).join('')}
+    `;
+  } else {
+    semEl.innerHTML = '<div style="text-align:center;color:var(--muted);padding:40px 0">Plano concluído 🎉</div>';
   }
 
-  // All weeks list
-  const listEl = document.getElementById('plano-semanas-list');
-  listEl.innerHTML = p.semanas.map((sem, i) => {
-    const isCurrent = (i + 1) === semAtual;
-    const isPast = (i + 1) < semAtual;
+  // ── Plano completo ──
+  const complEl = document.getElementById('plano-tab-completo');
+  complEl.innerHTML = planoData.semanas.map((sem, i) => {
+    const isPast    = i < semIdx;
+    const isCurrent = i === semIdx;
+    const feitasSem = sem.treinos.filter(t => treinoFoiFeito(t.date)).length;
     return `
-    <div style="background:var(--surface);border:1px solid ${isCurrent ? 'rgba(232,255,71,.3)' : 'var(--border)'};border-radius:14px;padding:14px 16px;opacity:${isPast ? '.5' : '1'}">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${sem.treinos?.length ? '10px' : '0'}">
+    <div style="border-radius:14px;overflow:hidden">
+      <div style="background:${isCurrent?'rgba(232,255,71,.08)':'var(--surface)'};border:1px solid ${isCurrent?'rgba(232,255,71,.3)':'var(--border)'};padding:12px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;${isPast?'opacity:.55':''}"
+        onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'flex':'none'">
         <div>
-          <div style="font-family:var(--font-display);font-size:12px;font-weight:700;color:${isCurrent ? 'var(--accent)' : 'var(--muted)'}">
-            ${isPast ? '✓ ' : ''}Semana ${sem.num}${isCurrent ? ' · atual' : ''}
+          <div style="font-family:var(--font-display);font-size:11px;font-weight:700;color:${isCurrent?'var(--accent)':'var(--muted)'}">
+            ${isPast?'✓ ':''}Semana ${sem.num}${isCurrent?' · atual':''}
           </div>
-          <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-top:2px">${sem.resumo}</div>
+          <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-top:1px">${sem.resumo}</div>
         </div>
         <div style="text-align:right;flex-shrink:0">
           <div style="font-family:var(--font-display);font-size:16px;font-weight:800;color:var(--accent)">${sem.kmTotal}<span style="font-size:10px;color:var(--muted);font-weight:400">km</span></div>
-          <div style="font-size:10px;color:var(--muted)">${sem.treinos?.length || 0} treinos</div>
+          <div style="font-size:10px;color:var(--muted)">${feitasSem}/${sem.treinos.length} treinos</div>
         </div>
       </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        ${(sem.treinos||[]).map(t => `
-          <div style="display:flex;align-items:center;gap:5px;background:var(--surface2);border-radius:6px;padding:4px 8px">
-            <span style="font-family:var(--font-display);font-size:10px;font-weight:800;color:${getTipoColor(t.tipo)}">${t.tipo}</span>
-            <span style="font-size:10px;color:var(--muted)">${t.diaNome} · ${t.distTotal}</span>
-          </div>
-        `).join('')}
+      <div style="display:none;flex-direction:column;gap:8px;padding:8px 0 4px">
+        ${sem.treinos.map(t => renderTreinoCard(t, true)).join('')}
       </div>
     </div>`;
   }).join('');
 }
 
-function ajustarPlano() {
-  if (!planoState.plano) return;
-  planoState.ajustesPendentes = false;
-  gerarPlano(true);
+function showPage_plano() {
+  if (planoData) {
+    renderPlanoContent();
+  } else {
+    document.getElementById('plano-setup').style.display   = 'block';
+    document.getElementById('plano-content').style.display = 'none';
+  }
 }
 
 function resetarPlano() {
   if (!confirm('Apagar o plano atual e criar um novo?')) return;
-  planoState.plano = null;
+  planoData = null;
   savePlano();
-  document.getElementById('plano-setup').style.display = 'flex';
+  document.getElementById('plano-setup').style.display   = 'block';
   document.getElementById('plano-content').style.display = 'none';
 }
 
 async function savePlano() {
-  try { await dbSet('plano', planoState); } catch(e) {}
+  try { await dbSet('plano', planoData); } catch(e) {}
   if (!currentUser) return;
   try {
     await supa.from('user_settings').upsert({
-      user_id: currentUser.id,
-      key: 'plano',
-      value: planoState,
+      user_id: currentUser.id, key: 'plano', value: planoData,
     }, { onConflict: 'user_id,key' });
   } catch(e) {}
 }
@@ -4264,15 +4523,16 @@ async function savePlano() {
 async function loadPlano() {
   try {
     const local = await dbGet('plano');
-    if (local) { planoState = { ...planoState, ...local }; return; }
+    if (local) { planoData = local; return; }
   } catch(e) {}
   if (!currentUser) return;
   try {
     const { data } = await supa.from('user_settings')
       .select('value').eq('user_id', currentUser.id).eq('key', 'plano').maybeSingle();
-    if (data?.value) planoState = { ...planoState, ...data.value };
+    if (data?.value) planoData = data.value;
   } catch(e) {}
 }
+
 // ══════════════════════════════════════════
 // Init: show login screen while auth state is determined
 showLoginScreen();
