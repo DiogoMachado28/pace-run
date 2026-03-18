@@ -1006,20 +1006,13 @@ const _stravaCodeOnLoad = (() => {
 })();
 const SUPA_URL = 'https://urtvucvjkfffwhkdfclp.supabase.co';
 const SUPA_KEY = 'sb_publishable_x0COUdZugcp_Ft70WYu4iQ__7NirBOA';
-// Use sessionStorage so the session only lives for this tab/window.
-// A fresh incognito window or new tab starts with no session (sessionStorage is always empty there).
-// But a redirect within the same tab (Strava OAuth) keeps the session intact.
-const _supaStorage = {
-  getItem: (key) => sessionStorage.getItem(key),
-  setItem: (key, value) => sessionStorage.setItem(key, value),
-  removeItem: (key) => sessionStorage.removeItem(key),
-};
+// Use default localStorage (Supabase default) so locks and token refresh work correctly.
+// Auto-login on INITIAL_SESSION is blocked in the auth handler instead.
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    storage: _supaStorage,
   }
 });
 let currentUser = null;
@@ -1047,9 +1040,10 @@ async function doLogout() {
   currentUser = null;
   setLoginLoading(false);
   showLoginScreen();
-  // Clear session and IndexedDB in background
-  sessionStorage.clear();
+  // Clear Supabase session from localStorage and IndexedDB in background
   supa.auth.signOut().catch(() => {});
+  // Also wipe any Supabase localStorage keys directly to be safe
+  Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k));
   Promise.all([
     dbSet('runs',[]), dbSet('gpxRoutes',{}),
     dbSet('gpxSplits',{}), dbSet('gpxPoints',{})
@@ -1082,11 +1076,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Auth state — drives the whole app lifecycle
 let _appBooted = false;
-let _userLoggedInExplicitly = false; // only true after user clicks login or comes from Strava OAuth
+let _activeUserId = null; // tracks which user is currently loaded — ignores duplicate events
+
 supa.auth.onAuthStateChange(async (event, session) => {
   console.log('Auth event:', event, 'user:', session?.user?.email);
 
   if (!session?.user) {
+    _appBooted = false;
+    _activeUserId = null;
     setLoginLoading(false);
     currentUser = null;
     runs = []; gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
@@ -1095,23 +1092,25 @@ supa.auth.onAuthStateChange(async (event, session) => {
     return;
   }
 
-  // INITIAL_SESSION: Supabase recovered a session automatically.
-  // Only honour it if:
-  // (a) we're processing a Strava OAuth callback (code in URL), or
-  // (b) user explicitly logged in this page load
+  // Ignore INITIAL_SESSION unless it's a Strava OAuth callback
   if (event === 'INITIAL_SESSION') {
     if (_stravaCodeOnLoad) {
-      // Strava OAuth flow — need the session to exchange the code
-      _userLoggedInExplicitly = true;
+      // fall through — needed to exchange the Strava code
     } else {
-      // Auto-recovered session — ignore it, show login
       showLoginScreen();
       return;
     }
   }
 
-  // Only proceed on SIGNED_IN (explicit) or INITIAL_SESSION+Strava
+  // Only handle SIGNED_IN (and INITIAL_SESSION+Strava above)
   if (event !== 'SIGNED_IN' && event !== 'INITIAL_SESSION') return;
+
+  // If this user is already loaded, ignore duplicate event
+  if (_activeUserId === session.user.id) {
+    console.log('Auth: duplicate event for same user, ignoring');
+    return;
+  }
+  _activeUserId = session.user.id;
 
   currentUser = session.user;
   showApp();
@@ -1214,19 +1213,24 @@ async function save() {
 //  Aplicadas após load() e após cada import.
 //  Para adicionar: { date: 'YYYY-MM-DD', name: '...', dist: X.X }
 // ══════════════════════════════════════════
-const RACE_OVERRIDES = [
-  {
-    date: '2026-01-10',          // Corrida dos Reis PVZ 2026
-    name: 'Corrida dos Reis PVZ 2026',
-  },
-  {
-    date: '2026-03-15',          // Corrida do Pai 2026
-    name: 'Corrida do Pai 2026',
-    dist: 10.0,                  // oficial (Strava: 9.99km)
-    secs: 2920,                  // oficial 48:40
-    completeSplits: true,        // extrapolar último split parcial até à distância oficial
-  },
-];
+const MY_USER_ID = 'ac9cfa1f-6247-4b79-91da-ad4ce2a202b0';
+// Function instead of const — currentUser is null at script load time
+function getRaceOverrides() {
+  if (currentUser?.id !== MY_USER_ID) return [];
+  return [
+    {
+      date: '2026-01-10',          // Corrida dos Reis PVZ 2026
+      name: 'Corrida dos Reis PVZ 2026',
+    },
+    {
+      date: '2026-03-15',          // Corrida do Pai 2026
+      name: 'Corrida do Pai 2026',
+      dist: 10.0,                  // oficial (Strava: 9.99km)
+      secs: 2920,                  // oficial 48:40
+      completeSplits: true,        // extrapolar último split parcial até à distância oficial
+    },
+  ];
+}
 
 // Recalculate splits from gpxPoints for runs that have missing/wrong splits
 function recalcSplitsFromPoints() {
@@ -1267,7 +1271,7 @@ function recalcSplitsFromPoints() {
 }
 
 function applyRaceOverrides() {
-  for (const ov of RACE_OVERRIDES) {
+  for (const ov of getRaceOverrides()) {
     const run = runs.find(r => r.date.startsWith(ov.date));
     if (!run) continue;
     if (ov.name) run.name = ov.name;
@@ -1374,38 +1378,43 @@ async function load() {
   if (!currentUser) { showAppLoading(false); return; }
   console.log('load: fetching from Supabase...');
   try {
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000));
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000));
     const fetchData = Promise.all([
       supa.from('runs').select('data').eq('user_id', currentUser.id),
       supa.from('gpx_data').select('id,routes,splits,points').eq('user_id', currentUser.id),
     ]);
-    const [{ data: runsData }, { data: gpxData }] = await Promise.race([fetchData, timeout]);
-    console.log('load: Supabase returned', runsData?.length, 'runs');
-    const localCount = runs.length;
-    if (runsData && runsData.length >= localCount && runsData.length > 0) {
-      // Supabase has data and at least as many runs as local cache — use it
-      runs = runsData.map(r => r.data);
-      gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
-      (gpxData || []).forEach(g => {
-        if (g.routes) gpxRoutes[g.id] = g.routes;
-        if (g.splits) gpxSplits[g.id] = g.splits;
-        if (g.points) gpxPoints[g.id] = g.points;
-      });
-      applyRaceOverrides();
-      // Update IndexedDB cache with fresh data
-      Promise.all([
-        dbSet('runs', runs), dbSet('gpxRoutes', gpxRoutes),
-        dbSet('gpxSplits', gpxSplits), dbSet('gpxPoints', gpxPoints),
-      ]).catch(() => {});
-      renderAll(); // Re-render with fresh Supabase data
-    } else if (runsData && runsData.length === 0 && localCount === 0) {
-      // Both empty — user genuinely has no runs
-      renderAll();
+    const results = await Promise.race([fetchData, timeout]);
+    const runsData = results[0]?.data;
+    const gpxData  = results[1]?.data;
+    console.log('load: Supabase returned', runsData?.length ?? 'undefined', 'runs');
+    if (!runsData || !Array.isArray(runsData)) {
+      console.warn('load: invalid runsData, keeping local data');
+    } else {
+      const localCount = runs.length;
+      if (runsData.length > 0 && runsData.length >= localCount) {
+        // Supabase has data and at least as many runs as local — use it
+        runs = runsData.map(r => r.data);
+        gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
+        (gpxData || []).forEach(g => {
+          if (g.routes) gpxRoutes[g.id] = g.routes;
+          if (g.splits) gpxSplits[g.id] = g.splits;
+          if (g.points) gpxPoints[g.id] = g.points;
+        });
+        applyRaceOverrides();
+        Promise.all([
+          dbSet('runs', runs), dbSet('gpxRoutes', gpxRoutes),
+          dbSet('gpxSplits', gpxSplits), dbSet('gpxPoints', gpxPoints),
+        ]).catch(() => {});
+        renderAll();
+      } else if (runsData.length === 0 && localCount === 0) {
+        // New user with no runs anywhere — render empty state
+        renderAll();
+      }
+      // If Supabase returns fewer runs than local, keep local data (don't overwrite)
     }
-    // If Supabase returns fewer runs than local, keep local data (don't overwrite)
   } catch(e) {
     console.warn('load: Supabase error:', e.message);
-    // Supabase failed but IndexedDB data is already rendered — that's fine
+    // Timeout or error — IndexedDB data already rendered, that's fine
   } finally {
     showAppLoading(false);
   }
@@ -3282,7 +3291,7 @@ function renderPBs() {
     });
 
     // Inject official race results from RACE_OVERRIDES when dist matches target
-    for (const ov of RACE_OVERRIDES) {
+    for (const ov of getRaceOverrides()) {
       if (!ov.secs || !ov.dist) continue;
       if (Math.abs(ov.dist - t.km) > 0.1) continue; // only inject for matching distance
       const run = runs.find(r => r.date.startsWith(ov.date));
@@ -3754,7 +3763,7 @@ async function syncStrava(fullSync = false) {
     // Renumber all runs
     runs.sort((a, b) => new Date(a.date) - new Date(b.date));
     runs.forEach((r, i) => {
-      if (!RACE_OVERRIDES.some(ov => r.date.startsWith(ov.date))) {
+      if (!getRaceOverrides().some(ov => r.date.startsWith(ov.date))) {
         r.name = `${i + 1}ª corrida`;
       }
     });
