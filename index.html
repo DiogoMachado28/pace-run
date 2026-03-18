@@ -889,6 +889,93 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
           </div>
         </div>
       </div>
+
+    <!-- PLANO -->
+    <div class="page" id="page-plano">
+      <div style="padding:16px 20px 0">
+        <div style="font-family:var(--font-display);font-size:24px;font-weight:800">Plano</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">Treino gerado por IA com base no teu histórico</div>
+      </div>
+
+      <!-- Setup form (shown when no plan exists) -->
+      <div id="plano-setup" style="display:none;padding:20px;display:flex;flex-direction:column;gap:16px">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:16px">
+          <div style="font-family:var(--font-display);font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">Configurar plano</div>
+
+          <div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Objetivo</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap" id="plano-objetivo-chips">
+              <button class="filter-chip active" onclick="selectObjetivo('melhorar forma',this)">Melhorar forma</button>
+              <button class="filter-chip" onclick="selectObjetivo('10km',this)">Preparar 10km</button>
+              <button class="filter-chip" onclick="selectObjetivo('meia maratona',this)">Meia maratona</button>
+              <button class="filter-chip" onclick="selectObjetivo('maratona',this)">Maratona</button>
+            </div>
+          </div>
+
+          <div id="plano-data-wrap">
+            <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Data da prova (opcional)</div>
+            <input type="date" id="plano-data-prova"
+              style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:14px;color:var(--text);width:100%;box-sizing:border-box;font-family:var(--font-mono)">
+          </div>
+
+          <div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Dias disponíveis por semana</div>
+            <div style="display:flex;gap:8px" id="plano-dias-chips">
+              <button class="filter-chip" onclick="selectDias(2,this)">2</button>
+              <button class="filter-chip active" onclick="selectDias(3,this)">3</button>
+              <button class="filter-chip" onclick="selectDias(4,this)">4</button>
+              <button class="filter-chip" onclick="selectDias(5,this)">5</button>
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Semanas de plano</div>
+            <div style="display:flex;gap:8px" id="plano-semanas-chips">
+              <button class="filter-chip" onclick="selectSemanas(4,this)">4 sem</button>
+              <button class="filter-chip active" onclick="selectSemanas(8,this)">8 sem</button>
+              <button class="filter-chip" onclick="selectSemanas(12,this)">12 sem</button>
+            </div>
+          </div>
+
+          <button onclick="gerarPlano()" id="btn-gerar-plano"
+            style="background:var(--accent);color:#0a0a0f;border:none;border-radius:12px;padding:14px;font-family:var(--font-display);font-size:14px;font-weight:800;cursor:pointer;letter-spacing:0.5px;margin-top:4px">
+            ✦ Gerar plano com IA
+          </button>
+        </div>
+      </div>
+
+      <!-- Loading state -->
+      <div id="plano-loading" style="display:none;padding:60px 20px;text-align:center">
+        <div style="font-size:32px;margin-bottom:16px">✦</div>
+        <div style="font-family:var(--font-display);font-size:16px;font-weight:700;color:var(--accent)">A gerar o teu plano...</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:8px">A IA está a analisar o teu histórico</div>
+      </div>
+
+      <!-- Plan view -->
+      <div id="plano-content" style="display:none">
+        <!-- Plan header -->
+        <div style="padding:16px 20px 0;display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+          <div>
+            <div style="font-family:var(--font-display);font-size:14px;font-weight:700;color:var(--accent)" id="plano-titulo"></div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px" id="plano-subtitulo"></div>
+          </div>
+          <div style="display:flex;gap:8px;flex-shrink:0">
+            <button onclick="ajustarPlano()" style="font-size:10px;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:6px 12px;border-radius:8px;cursor:pointer;font-family:var(--font-display);font-weight:700">↻ Ajustar</button>
+            <button onclick="resetarPlano()" style="font-size:10px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:8px;cursor:pointer;font-family:var(--font-display);font-weight:700">Novo</button>
+          </div>
+        </div>
+
+        <!-- This week highlight -->
+        <div style="margin:16px 20px 0;background:linear-gradient(135deg,#1a1a10,#0f1a0a);border:1px solid rgba(232,255,71,.2);border-radius:16px;padding:16px" id="plano-semana-atual">
+        </div>
+
+        <!-- All weeks -->
+        <div style="padding:16px 20px 0">
+          <div style="font-family:var(--font-display);font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:12px">Plano completo</div>
+        </div>
+        <div id="plano-semanas-list" style="padding:0 20px 24px;display:flex;flex-direction:column;gap:10px"></div>
+      </div>
+    </div>
     </div>
   </div>
 
@@ -912,6 +999,10 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
     <button class="nav-btn" onclick="showPage('map',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
       Mapa
+    </button>
+    <button class="nav-btn" onclick="showPage('plano',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      Plano
     </button>
   </nav>
 </div>
@@ -1135,6 +1226,7 @@ supa.auth.onAuthStateChange(async (event, session) => {
 
   try { await load(); } catch(e) { console.log('load error:', e.message); }
   try { await loadStravaTokens(); } catch(e) { console.log('loadStrava error:', e.message); }
+  try { await loadPlano(); } catch(e) { console.log('loadPlano error:', e.message); }
   renderAll();
   console.log('renderAll done, runs:', runs.length);
 });
@@ -1455,6 +1547,7 @@ function showPage(id, btn) {
   if (id === 'map') initMap();
   if (id === 'analysis') renderAnalysis();
   if (id === 'heatmap') renderHeatmapPage();
+  if (id === 'plano') showPage_plano();
 }
 
 // ══════════════════════════════════════════
@@ -3400,13 +3493,13 @@ function initMap() {
 
   const cl = document.getElementById('map-run-checklist');
   cl.innerHTML = gpxRuns.map(r => `
-    <label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;background:var(--surface2);border:1px solid var(--border)">
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;background:var(--surface2);border:1px solid var(--border)">
       <input type="checkbox" data-id="${r.id}" ${mapSelectedIds.has(r.id)?'checked':''} onchange="mapToggleRun('${r.id}',this.checked)"
-        style="accent-color:${colorMap[r.id]};width:14px;height:14px;flex-shrink:0">
+        style="accent-color:${colorMap[r.id]};width:14px;height:14px;flex-shrink:0;cursor:pointer">
       <span style="width:10px;height:10px;border-radius:50%;background:${colorMap[r.id]};flex-shrink:0"></span>
-      <span style="font-size:11px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name}</span>
-      <span style="font-size:10px;color:var(--muted);flex-shrink:0">${r.dist.toFixed(1)}km</span>
-    </label>`).join('');
+      <span onclick="openRunModal('${r.id}')" style="font-size:11px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" title="Ver detalhes">${r.name}</span>
+      <span onclick="openRunModal('${r.id}')" style="font-size:10px;color:var(--accent2);flex-shrink:0;cursor:pointer;font-weight:700">${r.dist.toFixed(1)}km ↗</span>
+    </div>`).join('');
 
   if (!leafletMap) {
     leafletMap = L.map('leaflet-map', {zoomControl:false, attributionControl:false});
@@ -3453,9 +3546,17 @@ function redrawMapRoutes(colorMap) {
     const coords = gpxRoutes[r.id];
     const color = colorMap[r.id] || '#e8ff47';
     const isSingle = selected.length === 1;
-    const weight = isSingle ? 3 : 2;
-    const line = L.polyline(coords, {color, weight, opacity: isSingle ? 1 : 0.75}).addTo(leafletMap);
-    mapLayers.push(line);
+    const weight = isSingle ? 4 : 3;
+    const line = L.polyline(coords, {
+      color, weight,
+      opacity: isSingle ? 1 : 0.7,
+    }).addTo(leafletMap);
+    // Thicker invisible line for easier touch/click target
+    const hitLine = L.polyline(coords, {color, weight: 14, opacity: 0}).addTo(leafletMap);
+    hitLine.on('click', () => openRunModal(r.id));
+    hitLine.on('mouseover', () => { line.setStyle({weight: isSingle ? 5 : 4, opacity: 1}); hitLine.getElement()?.style && (hitLine.getElement().style.cursor='pointer'); });
+    hitLine.on('mouseout',  () => { line.setStyle({weight, opacity: isSingle ? 1 : 0.7}); });
+    mapLayers.push(line, hitLine);
     if (isSingle) {
       const start = L.circleMarker(coords[0], {radius:6, color, fillColor:color, fillOpacity:1}).addTo(leafletMap);
       const end = L.circleMarker(coords[coords.length-1], {radius:6, color:'#ff6b35', fillColor:'#ff6b35', fillOpacity:1}).addTo(leafletMap);
@@ -3856,6 +3957,321 @@ async function handleStravaCallback(code) {
     console.log('Callback error:', e.message, e.stack);
     showToast('Erro: ' + e.message, 8000);
   }
+}
+
+// ══════════════════════════════════════════
+//  PLANO DE TREINO (IA)
+// ══════════════════════════════════════════
+let planoState = {
+  objetivo: 'melhorar forma',
+  dias: 3,
+  semanas: 8,
+  dataProva: null,
+  plano: null,       // { geradoEm, objetivo, semanas: [{num, treinos:[{dia,tipo,descricao,detalhes}], resumo}] }
+  ajustesPendentes: false,
+};
+
+function showPage_plano() {
+  // Called when plano tab is opened
+  if (planoState.plano) {
+    renderPlanoContent();
+  } else {
+    document.getElementById('plano-setup').style.display = 'flex';
+    document.getElementById('plano-loading').style.display = 'none';
+    document.getElementById('plano-content').style.display = 'none';
+  }
+}
+
+function selectObjetivo(val, el) {
+  planoState.objetivo = val;
+  el.closest('#plano-objetivo-chips').querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  // Show/hide date field
+  const dateWrap = document.getElementById('plano-data-wrap');
+  dateWrap.style.display = val === 'melhorar forma' ? 'none' : '';
+}
+
+function selectDias(val, el) {
+  planoState.dias = val;
+  el.closest('#plano-dias-chips').querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function selectSemanas(val, el) {
+  planoState.semanas = val;
+  el.closest('#plano-semanas-chips').querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function buildContextoHistorico() {
+  if (!runs.length) return 'Utilizador sem histórico de corridas ainda.';
+  const recentes = [...runs].sort((a,b) => new Date(b.date)-new Date(a.date)).slice(0, 20);
+  const totalKm = runs.reduce((s,r) => s+r.dist, 0);
+  const avgPaceAll = runs.reduce((s,r) => s+r.secs, 0) / runs.reduce((s,r) => s+r.dist, 0);
+  // Weekly volume last 8 weeks
+  const now = new Date();
+  const weekVols = [];
+  for (let w = 0; w < 8; w++) {
+    const wStart = new Date(now); wStart.setDate(now.getDate() - ((now.getDay()+6)%7) - w*7); wStart.setHours(0,0,0,0);
+    const wEnd = new Date(wStart); wEnd.setDate(wStart.getDate()+6); wEnd.setHours(23,59,59,999);
+    const wKm = runs.filter(r => { const d=new Date(r.date); return d>=wStart&&d<=wEnd; }).reduce((s,r)=>s+r.dist,0);
+    weekVols.push(Math.round(wKm*10)/10);
+  }
+  const avgWeekly = weekVols.reduce((a,b)=>a+b,0) / weekVols.filter(v=>v>0).length || 0;
+  const bestPace = runs.filter(r=>r.bestSplit).reduce((best,r) => r.bestSplit < (best||9999) ? r.bestSplit : best, null);
+  const recentAvgPace = recentes.slice(0,8).reduce((s,r)=>s+r.secs,0) / recentes.slice(0,8).reduce((s,r)=>s+r.dist,0);
+  return `Histórico: ${runs.length} corridas, ${Math.round(totalKm)}km total.
+Volume médio semanal (últimas 8 semanas): ${avgWeekly.toFixed(1)}km/semana. Volumes: ${weekVols.join(', ')}km.
+Ritmo médio recente (últimas 8 corridas): ${fmtPace(recentAvgPace*1, 1)}/km.
+Ritmo médio geral: ${fmtPace(avgPaceAll*1, 1)}/km.
+Melhor km: ${bestPace ? fmtPace(bestPace, 1) : 'desconhecido'}/km.
+Últimas corridas: ${recentes.slice(0,5).map(r=>`${r.dist.toFixed(1)}km @ ${fmtPace(r.secs,r.dist)}/km`).join(', ')}.`;
+}
+
+async function gerarPlano(isAjuste = false) {
+  const dataProva = document.getElementById('plano-data-prova')?.value;
+  planoState.dataProva = dataProva || null;
+
+  document.getElementById('plano-setup').style.display = 'none';
+  document.getElementById('plano-loading').style.display = 'block';
+  document.getElementById('plano-content').style.display = 'none';
+
+  const contexto = buildContextoHistorico();
+  const hoje = new Date().toISOString().split('T')[0];
+
+  let ajusteContext = '';
+  if (isAjuste && planoState.plano) {
+    // Build what was done vs planned last week
+    const semanaAtual = getCurrentPlanWeek();
+    if (semanaAtual > 0 && planoState.plano.semanas[semanaAtual-1]) {
+      const semAnt = planoState.plano.semanas[semanaAtual-1];
+      const now = new Date();
+      const dow = (now.getDay()+6)%7;
+      const monday = new Date(now); monday.setDate(now.getDate()-dow-7); monday.setHours(0,0,0,0);
+      const sunday = new Date(monday); sunday.setDate(monday.getDate()+6); sunday.setHours(23,59,59,999);
+      const feitaSemana = runs.filter(r=>{const d=new Date(r.date);return d>=monday&&d<=sunday;});
+      ajusteContext = `\n\nSemana anterior — planeado: ${semAnt.treinos.length} treinos (${semAnt.resumo}). Executado: ${feitaSemana.length} corridas, ${feitaSemana.reduce((s,r)=>s+r.dist,0).toFixed(1)}km, ritmos: ${feitaSemana.map(r=>fmtPace(r.secs,r.dist)+'/km').join(', ')}.`;
+    }
+  }
+
+  const prompt = `És um treinador de corrida de elite. Gera um plano de treino estruturado em JSON.
+
+DADOS DO ATLETA:
+${contexto}${ajusteContext}
+
+OBJETIVO: ${planoState.objetivo}${planoState.dataProva ? ` — prova em ${planoState.dataProva}` : ''}
+DIAS POR SEMANA: ${planoState.dias}
+SEMANAS: ${planoState.semanas}
+DATA DE HOJE: ${hoje}
+${isAjuste ? 'NOTA: Este é um ajuste ao plano existente com base na semana anterior. Mantém a estrutura mas ajusta intensidade/volume conforme necessário.' : ''}
+
+Responde APENAS com JSON válido, sem texto antes ou depois, sem markdown:
+{
+  "titulo": "string curto descritivo",
+  "subtitulo": "ex: 8 semanas · 3x/semana · objetivo 10km",
+  "semanas": [
+    {
+      "num": 1,
+      "resumo": "ex: Adaptação — volume leve",
+      "foco": "ex: Aeróbio base",
+      "kmTotal": 20.5,
+      "treinos": [
+        {
+          "diaNum": 1,
+          "diaNome": "Segunda",
+          "tipo": "A",
+          "nome": "Contínuo leve",
+          "descricao": "Corrida contínua a ritmo confortável",
+          "detalhes": [
+            {"segmento": "Aquecimento", "dist": "1.5km", "ritmo": "5:50/km"},
+            {"segmento": "Contínuo", "dist": "5km", "ritmo": "5:30/km"},
+            {"segmento": "Retorno", "dist": "0.5km", "ritmo": "6:00/km"}
+          ],
+          "distTotal": "7km",
+          "duracaoMin": 40
+        }
+      ]
+    }
+  ]
+}
+
+Tipos de treino: A=Contínuo, B1=Séries/Intervalos, B2=Limiar, C=Longo.
+Para B1 especifica: número de séries, distância de cada série, ritmo objetivo, recuperação.
+Os ritmos devem ser realistas baseados no histórico do atleta.
+Distribui os dias de treino de forma sensata ao longo da semana.`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    const data = await res.json();
+    const text = data.content?.[0]?.text || '';
+    // Strip any markdown fences just in case
+    const clean = text.replace(/```json|```/g, '').trim();
+    const plano = JSON.parse(clean);
+    planoState.plano = { ...plano, geradoEm: new Date().toISOString(), objetivo: planoState.objetivo, diasPorSemana: planoState.dias };
+    await savePlano();
+    renderPlanoContent();
+  } catch(e) {
+    console.error('Erro a gerar plano:', e);
+    document.getElementById('plano-loading').style.display = 'none';
+    document.getElementById('plano-setup').style.display = 'flex';
+    showToast('Erro ao gerar plano. Tenta novamente.', 4000);
+  }
+}
+
+function getCurrentPlanWeek() {
+  if (!planoState.plano?.geradoEm) return 1;
+  const gerado = new Date(planoState.plano.geradoEm);
+  const now = new Date();
+  const diffDays = Math.floor((now - gerado) / (1000*60*60*24));
+  return Math.min(Math.floor(diffDays / 7) + 1, planoState.plano.semanas.length);
+}
+
+function getTipoColor(tipo) {
+  if (tipo === 'B1') return 'var(--accent)';
+  if (tipo === 'B2') return 'var(--accent2)';
+  if (tipo === 'C') return '#60a5fa';
+  return 'var(--success)';
+}
+
+function renderPlanoContent() {
+  document.getElementById('plano-setup').style.display = 'none';
+  document.getElementById('plano-loading').style.display = 'none';
+  document.getElementById('plano-content').style.display = 'block';
+
+  const p = planoState.plano;
+  if (!p) return;
+
+  document.getElementById('plano-titulo').textContent = p.titulo || 'Plano de treino';
+  document.getElementById('plano-subtitulo').textContent = p.subtitulo || '';
+
+  const semAtual = getCurrentPlanWeek();
+
+  // This week highlight
+  const semDados = p.semanas?.[semAtual - 1];
+  const semEl = document.getElementById('plano-semana-atual');
+  if (semDados) {
+    // Check what was done this week
+    const now = new Date();
+    const dow = (now.getDay()+6)%7;
+    const monday = new Date(now); monday.setDate(now.getDate()-dow); monday.setHours(0,0,0,0);
+    const sunday = new Date(monday); sunday.setDate(monday.getDate()+6); sunday.setHours(23,59,59,999);
+    const feitas = runs.filter(r=>{const d=new Date(r.date);return d>=monday&&d<=sunday;});
+
+    semEl.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div>
+          <div style="font-family:var(--font-display);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--accent)">Semana ${semAtual} de ${p.semanas.length}</div>
+          <div style="font-family:var(--font-display);font-size:16px;font-weight:800;margin-top:2px">${semDados.resumo}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">${semDados.foco || ''} · ${semDados.kmTotal}km previstos</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--accent)">${feitas.length}<span style="font-size:13px;color:var(--muted);font-weight:400">/${semDados.treinos.length}</span></div>
+          <div style="font-size:10px;color:var(--muted)">treinos feitos</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${semDados.treinos.map((t,i) => `
+          <div style="background:rgba(0,0,0,.3);border-radius:10px;padding:12px;display:flex;gap:12px;align-items:flex-start">
+            <div style="width:32px;height:32px;border-radius:8px;background:${getTipoColor(t.tipo)}22;border:1px solid ${getTipoColor(t.tipo)}44;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <span style="font-family:var(--font-display);font-size:11px;font-weight:800;color:${getTipoColor(t.tipo)}">${t.tipo}</span>
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
+                <div style="font-family:var(--font-display);font-size:13px;font-weight:700">${t.diaNome} — ${t.nome}</div>
+                <div style="font-size:11px;color:var(--muted);flex-shrink:0">${t.distTotal}</div>
+              </div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px">${t.descricao}</div>
+              <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">
+                ${(t.detalhes||[]).map(d => `
+                  <div style="display:flex;gap:8px;font-size:11px">
+                    <span style="color:var(--muted);width:80px;flex-shrink:0">${d.segmento}</span>
+                    <span style="color:var(--text)">${d.dist}</span>
+                    <span style="color:var(--accent2);margin-left:auto">${d.ritmo}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      </div>`;
+  }
+
+  // All weeks list
+  const listEl = document.getElementById('plano-semanas-list');
+  listEl.innerHTML = p.semanas.map((sem, i) => {
+    const isCurrent = (i + 1) === semAtual;
+    const isPast = (i + 1) < semAtual;
+    return `
+    <div style="background:var(--surface);border:1px solid ${isCurrent ? 'rgba(232,255,71,.3)' : 'var(--border)'};border-radius:14px;padding:14px 16px;opacity:${isPast ? '.5' : '1'}">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${sem.treinos?.length ? '10px' : '0'}">
+        <div>
+          <div style="font-family:var(--font-display);font-size:12px;font-weight:700;color:${isCurrent ? 'var(--accent)' : 'var(--muted)'}">
+            ${isPast ? '✓ ' : ''}Semana ${sem.num}${isCurrent ? ' · atual' : ''}
+          </div>
+          <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-top:2px">${sem.resumo}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-family:var(--font-display);font-size:16px;font-weight:800;color:var(--accent)">${sem.kmTotal}<span style="font-size:10px;color:var(--muted);font-weight:400">km</span></div>
+          <div style="font-size:10px;color:var(--muted)">${sem.treinos?.length || 0} treinos</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${(sem.treinos||[]).map(t => `
+          <div style="display:flex;align-items:center;gap:5px;background:var(--surface2);border-radius:6px;padding:4px 8px">
+            <span style="font-family:var(--font-display);font-size:10px;font-weight:800;color:${getTipoColor(t.tipo)}">${t.tipo}</span>
+            <span style="font-size:10px;color:var(--muted)">${t.diaNome} · ${t.distTotal}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function ajustarPlano() {
+  if (!planoState.plano) return;
+  planoState.ajustesPendentes = false;
+  gerarPlano(true);
+}
+
+function resetarPlano() {
+  if (!confirm('Apagar o plano atual e criar um novo?')) return;
+  planoState.plano = null;
+  savePlano();
+  document.getElementById('plano-setup').style.display = 'flex';
+  document.getElementById('plano-content').style.display = 'none';
+}
+
+async function savePlano() {
+  try { await dbSet('plano', planoState); } catch(e) {}
+  if (!currentUser) return;
+  try {
+    await supa.from('user_settings').upsert({
+      user_id: currentUser.id,
+      key: 'plano',
+      value: planoState,
+    }, { onConflict: 'user_id,key' });
+  } catch(e) {}
+}
+
+async function loadPlano() {
+  try {
+    const local = await dbGet('plano');
+    if (local) { planoState = { ...planoState, ...local }; return; }
+  } catch(e) {}
+  if (!currentUser) return;
+  try {
+    const { data } = await supa.from('user_settings')
+      .select('value').eq('user_id', currentUser.id).eq('key', 'plano').maybeSingle();
+    if (data?.value) planoState = { ...planoState, ...data.value };
+  } catch(e) {}
 }
 // ══════════════════════════════════════════
 // Init: show login screen while auth state is determined
