@@ -1034,20 +1034,25 @@ async function doSignup() {
   else { showLoginError('✓ Verifica o teu email para confirmar a conta.'); setLoginLoading(false); }
 }
 async function doLogout() {
-  // Clear state immediately — don't wait for Supabase
+  // Clear state immediately
   runs = []; gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
   stravaTokens = null;
   currentUser = null;
+  _activeUserId = null;
   setLoginLoading(false);
   showLoginScreen();
-  // Clear Supabase session from localStorage and IndexedDB in background
-  supa.auth.signOut().catch(() => {});
-  // Also wipe any Supabase localStorage keys directly to be safe
+  // Clear session storage and localStorage Supabase keys
+  sessionStorage.clear();
   Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k));
-  Promise.all([
-    dbSet('runs',[]), dbSet('gpxRoutes',{}),
-    dbSet('gpxSplits',{}), dbSet('gpxPoints',{})
-  ]).catch(() => {});
+  // AWAIT IndexedDB clear — must finish before next login reads stale data
+  try {
+    await Promise.all([
+      dbSet('runs', []), dbSet('gpxRoutes', {}),
+      dbSet('gpxSplits', {}), dbSet('gpxPoints', {}),
+      dbSet('owner_user_id', null),
+    ]);
+  } catch(e) {}
+  supa.auth.signOut().catch(() => {});
 }
 function showLoginError(msg) {
   const el = document.getElementById('login-error');
@@ -1188,6 +1193,7 @@ async function save() {
     await Promise.all([
       dbSet('runs', runs), dbSet('gpxRoutes', gpxRoutes),
       dbSet('gpxSplits', gpxSplits), dbSet('gpxPoints', gpxPoints),
+      dbSet('owner_user_id', currentUser?.id || null),
     ]);
   } catch(e) { console.warn('IndexedDB save error:', e); }
 
@@ -1350,17 +1356,26 @@ async function load() {
   try {
     await openDB();
     console.log('load: IndexedDB open, fetching...');
-    const [r, rt, sp, pt] = await Promise.all([
-      dbGet('runs'), dbGet('gpxRoutes'), dbGet('gpxSplits'), dbGet('gpxPoints')
+    const [r, rt, sp, pt, ownerId] = await Promise.all([
+      dbGet('runs'), dbGet('gpxRoutes'), dbGet('gpxSplits'), dbGet('gpxPoints'),
+      dbGet('owner_user_id'),
     ]);
-    if (r && r.length > 0) { runs = r; hasLocalData = true; }
-    if (rt) gpxRoutes = rt;
-    if (sp) gpxSplits = sp;
-    if (pt) gpxPoints = pt;
-    applyRaceOverrides();
-    // Persist any bestSplit corrections back to IndexedDB
-    if (r && r.length > 0) {
-      dbSet('runs', runs).catch(() => {});
+    // Only use cached data if it belongs to the current user
+    if (r && r.length > 0 && ownerId === currentUser?.id) {
+      runs = r; hasLocalData = true;
+      if (rt) gpxRoutes = rt;
+      if (sp) gpxSplits = sp;
+      if (pt) gpxPoints = pt;
+      applyRaceOverrides();
+      dbSet('runs', runs).catch(() => {}); // persist bestSplit corrections
+    } else if (ownerId !== currentUser?.id) {
+      // Stale data from a different user — clear it
+      console.log('load: IndexedDB has data from different user, clearing...');
+      await Promise.all([
+        dbSet('runs', []), dbSet('gpxRoutes', {}),
+        dbSet('gpxSplits', {}), dbSet('gpxPoints', {}),
+        dbSet('owner_user_id', currentUser?.id),
+      ]);
     }
     console.log('load: IndexedDB done, runs:', runs.length);
   } catch(e) {
@@ -1404,6 +1419,7 @@ async function load() {
         Promise.all([
           dbSet('runs', runs), dbSet('gpxRoutes', gpxRoutes),
           dbSet('gpxSplits', gpxSplits), dbSet('gpxPoints', gpxPoints),
+          dbSet('owner_user_id', currentUser?.id || null),
         ]).catch(() => {});
         renderAll();
       } else if (runsData.length === 0 && localCount === 0) {
