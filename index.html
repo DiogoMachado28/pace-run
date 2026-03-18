@@ -2587,8 +2587,8 @@ function renderRunsList(list) {
           <div style="font-family:var(--font-display);font-size:12px;font-weight:700;line-height:1;${isActiveSortDate}">${dateShort}</div>
           <div style="font-size:9px;color:var(--muted)">data</div>
         </div>
-        <div style="width:48px;text-align:right">
-          <div style="font-family:var(--font-display);font-size:16px;font-weight:800;line-height:1;${isActiveSortDist}">${r.dist.toFixed(1)}</div>
+        <div style="width:52px;text-align:right">
+          <div style="font-family:var(--font-display);font-size:${r.dist >= 10 ? '14px' : '16px'};font-weight:800;line-height:1;${isActiveSortDist}">${r.dist.toFixed(1)}</div>
           <div style="font-size:9px;color:var(--muted)">km</div>
         </div>
         <div style="width:48px;text-align:right">
@@ -3621,7 +3621,7 @@ let stravaTokens = null; // { access_token, refresh_token, expires_at, athlete_i
 
 async function loadStravaTokens() {
   if (!currentUser) return;
-  const { data } = await supa.from('strava_tokens').select('*').eq('user_id', currentUser.id).single();
+  const { data } = await supa.from('strava_tokens').select('*').eq('user_id', currentUser.id).maybeSingle();
   stravaTokens = data || null;
   updateStravaBtn();
 }
