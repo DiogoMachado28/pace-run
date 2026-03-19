@@ -2403,6 +2403,7 @@ function renderHeatmapPage() {
   const firstMondayUTC = firstRunUTC - firstDow * 86400000;
   const weeksSinceFirst = Math.ceil((thisMondayUTC - firstMondayUTC) / (7 * 86400000)) + 1;
   const WEEKS = Math.max(weeksSinceFirst, 4);
+  console.log('Heatmap: firstRun=', firstRun.toISOString(), 'weeksSinceFirst=', weeksSinceFirst, 'WEEKS=', WEEKS);
 
   document.getElementById('heatmap-subtitle').textContent =
     `${runs.length} corridas · desde ${firstRun.toLocaleDateString('pt-PT',{month:'long',year:'numeric'})}`;
@@ -4559,23 +4560,28 @@ function renderPlanoContent() {
 function showPage_plano() {
   const setupEl   = document.getElementById('plano-setup');
   const contentEl = document.getElementById('plano-content');
-  if (!setupEl || !contentEl) return;
+  console.log('showPage_plano: setupEl=', !!setupEl, 'contentEl=', !!contentEl, 'planoData=', planoData);
+  if (!setupEl || !contentEl) { console.error('plano elements missing!'); return; }
 
   // Validate plan data has the new format (needs 'semanas' with 'treinos[].segmentos')
   const isValidPlan = planoData &&
     Array.isArray(planoData.semanas) &&
     planoData.semanas[0]?.treinos?.[0]?.segmentos;
 
+  console.log('showPage_plano: isValidPlan=', isValidPlan);
+
   if (isValidPlan) {
     renderPlanoContent();
   } else {
-    // No plan or old format — clear and show setup
     if (planoData && !isValidPlan) {
+      console.log('showPage_plano: clearing old format plan');
       planoData = null;
       savePlano();
     }
+    console.log('showPage_plano: setting setup display=block, current=', setupEl.style.display);
     setupEl.style.display   = 'block';
     contentEl.style.display = 'none';
+    console.log('showPage_plano: after set, setup display=', setupEl.style.display);
     document.getElementById('content')?.scrollTo(0, 0);
   }
 }
