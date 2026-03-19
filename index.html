@@ -4562,14 +4562,19 @@ function renderPlanoContent() {
 }
 
 function showPage_plano() {
+  try {
+  console.log('showPage_plano start');
   const setupEl   = document.getElementById('plano-setup');
   const contentEl = document.getElementById('plano-content');
-  if (!setupEl || !contentEl) return;
+  console.log('plano-setup:', setupEl, 'plano-content:', contentEl);
+  if (!setupEl || !contentEl) { console.error('elements missing'); return; }
 
   const isValidPlan = planoData &&
     typeof planoData === 'object' &&
     Array.isArray(planoData.semanas) &&
     planoData.semanas[0]?.treinos?.[0]?.segmentos;
+
+  console.log('isValidPlan:', isValidPlan, 'planoData:', planoData);
 
   if (isValidPlan) {
     setupEl.style.display   = 'none';
@@ -4579,7 +4584,9 @@ function showPage_plano() {
     planoData = null;
     setupEl.style.display   = 'block';
     contentEl.style.display = 'none';
+    console.log('showing setup, display now:', setupEl.style.display);
   }
+  } catch(e) { console.error('showPage_plano ERROR:', e.message, e.stack); }
 }
 
 function resetarPlano() {
