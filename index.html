@@ -1033,7 +1033,6 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
       </div>
     </div>
   </div>
-  </div>
 
   <nav>
     <button class="nav-btn active" onclick="showPage('dashboard',this)">
@@ -1056,7 +1055,7 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
       Mapa
     </button>
-    <button class="nav-btn" onclick="showPage('plano',this)">
+    <button class="nav-btn" onclick="console.log('plano btn clicked'); showPage('plano',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
       Plano
     </button>
@@ -4559,9 +4558,10 @@ function renderPlanoContent() {
 }
 
 function showPage_plano() {
+  console.log('showPage_plano called');
   const setupEl   = document.getElementById('plano-setup');
   const contentEl = document.getElementById('plano-content');
-  if (!setupEl || !contentEl) return;
+  console.log('els:', !!setupEl, !!contentEl, 'planoData:', !!planoData);
 
   const isValidPlan = planoData &&
     Array.isArray(planoData.semanas) &&
