@@ -460,7 +460,7 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
 <body>
 
 <!-- LOGIN SCREEN -->
-<div id="login-screen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px">
+<div id="login-screen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:9999;flex-direction:column;align-items:center;justify-content:center;padding:24px">
   <div style="width:100%;max-width:360px">
     <div style="font-family:var(--font-display);font-size:32px;font-weight:800;color:var(--accent);margin-bottom:4px">PACE<span style="color:var(--text);font-weight:400">.run</span></div>
     <div style="font-size:13px;color:var(--muted);margin-bottom:40px">Running analytics</div>
@@ -486,6 +486,12 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
 </div>
 
 <div id="app">
+  <!-- Loading overlay shown while fetching data from Supabase -->
+  <div id="app-loading" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:8888;flex-direction:column;align-items:center;justify-content:center;gap:16px">
+    <div style="font-family:var(--font-display);font-size:28px;font-weight:800;color:var(--accent)">PACE<span style="color:var(--text);font-weight:400">.run</span></div>
+    <div style="font-size:13px;color:var(--muted)">A carregar as tuas corridas...</div>
+  </div>
+
   <header>
     <div class="logo">PACE<span>.run</span></div>
     <div class="header-actions">
@@ -496,7 +502,9 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
       <label for="file-input" class="btn-icon" title="Importar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
       </label>
-      <button class="btn-icon" onclick="doLogout()" title="Sair" style="font-size:16px">⏻</button>
+      <button class="btn-icon" onclick="doLogout()" title="Sair">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
       <button class="btn-icon" onclick="clearAllData()" title="Limpar dados">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
       </button>
@@ -881,8 +889,151 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
           </div>
         </div>
       </div>
-    </div>
-  </div>
+
+    <!-- PLANO -->
+    <div id="page-plano" style="display:none;min-height:200px">
+
+      <!-- SETUP -->
+      <div id="plano-setup">
+        <div style="padding:16px 20px 8px">
+          <div style="font-family:var(--font-display);font-size:24px;font-weight:800">Plano de treino</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">Personalizado com base no teu histórico</div>
+        </div>
+
+        <div style="padding:0 20px 24px;display:flex;flex-direction:column;gap:14px">
+
+          <!-- Objetivo tipo -->
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px">
+            <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Tipo de objetivo</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+                <input type="radio" name="plano-tipo" value="prova-pace" checked onchange="planoTipoChange(this.value)"
+                  style="accent-color:var(--accent);width:16px;height:16px">
+                <span style="font-size:13px">Prova com pace objetivo <span style="color:var(--muted);font-size:11px">(ex: 10km a 4:48/km)</span></span>
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+                <input type="radio" name="plano-tipo" value="prova-tempo" onchange="planoTipoChange(this.value)"
+                  style="accent-color:var(--accent);width:16px;height:16px">
+                <span style="font-size:13px">Prova com tempo objetivo <span style="color:var(--muted);font-size:11px">(ex: 10km em 48min)</span></span>
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+                <input type="radio" name="plano-tipo" value="pace-geral" onchange="planoTipoChange(this.value)"
+                  style="accent-color:var(--accent);width:16px;height:16px">
+                <span style="font-size:13px">Melhorar pace geral <span style="color:var(--muted);font-size:11px">(sem data definida)</span></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Objetivo detalhes -->
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px" id="plano-obj-detalhes">
+
+            <div id="plano-dist-wrap">
+              <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Distância da prova</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap" id="plano-dist-chips">
+                <button class="filter-chip" onclick="planoSelectDist(5,this)">5km</button>
+                <button class="filter-chip active" onclick="planoSelectDist(10,this)">10km</button>
+                <button class="filter-chip" onclick="planoSelectDist(21.1,this)">Meia</button>
+                <button class="filter-chip" onclick="planoSelectDist(42.2,this)">Maratona</button>
+              </div>
+            </div>
+
+            <div id="plano-data-wrap">
+              <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Data da prova</div>
+              <input type="date" id="plano-data-prova"
+                style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:14px;color:var(--text);width:100%;box-sizing:border-box;font-family:var(--font-mono)">
+            </div>
+
+            <div id="plano-pace-wrap">
+              <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Pace objetivo (min:ss /km)</div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <input type="number" id="plano-pace-min" min="3" max="9" placeholder="4" 
+                  style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:18px;color:var(--text);width:60px;text-align:center;font-family:var(--font-display);font-weight:800">
+                <span style="color:var(--muted);font-size:20px">:</span>
+                <input type="number" id="plano-pace-sec" min="0" max="59" placeholder="48"
+                  style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:18px;color:var(--text);width:60px;text-align:center;font-family:var(--font-display);font-weight:800">
+                <span style="color:var(--muted);font-size:13px">/km</span>
+              </div>
+            </div>
+
+            <div id="plano-tempo-wrap" style="display:none">
+              <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Tempo objetivo</div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <input type="number" id="plano-tempo-h" min="0" max="6" placeholder="0"
+                  style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:18px;color:var(--text);width:60px;text-align:center;font-family:var(--font-display);font-weight:800">
+                <span style="color:var(--muted);font-size:20px">h</span>
+                <input type="number" id="plano-tempo-min" min="0" max="59" placeholder="48"
+                  style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:18px;color:var(--text);width:60px;text-align:center;font-family:var(--font-display);font-weight:800">
+                <span style="color:var(--muted);font-size:13px">min</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dias da semana -->
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px">
+            <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Modo de dias</div>
+            <div style="display:flex;gap:8px;margin-bottom:12px">
+              <button class="filter-chip active" id="btn-modo-num" onclick="planoModoDias('num')">Nº de dias</button>
+              <button class="filter-chip" id="btn-modo-esp" onclick="planoModoDias('especificos')">Dias específicos</button>
+            </div>
+            <div id="plano-num-dias-wrap">
+              <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Dias por semana</div>
+              <div style="display:flex;gap:8px" id="plano-num-chips">
+                <button class="filter-chip" onclick="planoSelectNumDias(2,this)">2×</button>
+                <button class="filter-chip active" onclick="planoSelectNumDias(3,this)">3×</button>
+                <button class="filter-chip" onclick="planoSelectNumDias(4,this)">4×</button>
+                <button class="filter-chip" onclick="planoSelectNumDias(5,this)">5×</button>
+              </div>
+            </div>
+            <div id="plano-esp-dias-wrap" style="display:none">
+              <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Seleciona os dias</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap" id="plano-dias-semana-chips">
+                <button class="filter-chip" onclick="planoToggleDia(1,this)">Seg</button>
+                <button class="filter-chip" onclick="planoToggleDia(2,this)">Ter</button>
+                <button class="filter-chip" onclick="planoToggleDia(3,this)">Qua</button>
+                <button class="filter-chip" onclick="planoToggleDia(4,this)">Qui</button>
+                <button class="filter-chip" onclick="planoToggleDia(5,this)">Sex</button>
+                <button class="filter-chip" onclick="planoToggleDia(6,this)">Sáb</button>
+                <button class="filter-chip" onclick="planoToggleDia(0,this)">Dom</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Gerar -->
+          <button onclick="gerarPlano()"
+            style="background:var(--accent);color:#0a0a0f;border:none;border-radius:12px;padding:14px;font-family:var(--font-display);font-size:15px;font-weight:800;cursor:pointer;letter-spacing:0.5px">
+            Gerar plano personalizado
+          </button>
+        </div>
+      </div>
+
+      <!-- PLANO ATIVO -->
+      <div id="plano-content" style="display:none">
+        <div style="padding:16px 20px 12px;display:flex;align-items:flex-start;justify-content:space-between">
+          <div>
+            <div style="font-family:var(--font-display);font-size:22px;font-weight:800" id="plano-titulo">—</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px" id="plano-subtitulo">—</div>
+          </div>
+          <button onclick="resetarPlano()"
+            style="font-size:11px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:8px;cursor:pointer;font-family:var(--font-display);font-weight:700;flex-shrink:0">
+            Novo plano
+          </button>
+        </div>
+
+        <!-- Tabs: semana atual / plano completo -->
+        <div class="tab-row" id="plano-tabs">
+          <button class="tab-btn active" onclick="planoShowTab('semana',this)">Esta semana</button>
+          <button class="tab-btn" onclick="planoShowTab('completo',this)">Plano completo</button>
+        </div>
+
+        <!-- Esta semana -->
+        <div id="plano-tab-semana" style="padding:16px 20px 24px;display:flex;flex-direction:column;gap:10px"></div>
+
+        <!-- Plano completo -->
+        <div id="plano-tab-completo" style="display:none;padding:16px 20px 24px;flex-direction:column;gap:10px"></div>
+      </div><!-- /plano-content -->
+    </div><!-- /page-plano -->
+  </div><!-- /last-page-wrapper -->
+  </div><!-- /content -->
 
   <nav>
     <button class="nav-btn active" onclick="showPage('dashboard',this)">
@@ -904,6 +1055,10 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
     <button class="nav-btn" onclick="showPage('map',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
       Mapa
+    </button>
+    <button class="nav-btn" onclick="showPage('plano',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      Plano
     </button>
   </nav>
 </div>
@@ -932,7 +1087,27 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
 <div class="modal-overlay" id="run-modal" onclick="closeModal(event)">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title" id="modal-title">—</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px">
+      <div class="modal-title" id="modal-title" style="margin-bottom:0">—</div>
+      <button onclick="editRunName()" id="btn-edit-name"
+        style="font-size:10px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:6px;cursor:pointer;flex-shrink:0;font-family:var(--font-display);font-weight:700">
+        ✎ editar
+      </button>
+    </div>
+    <div id="modal-name-edit" style="display:none;margin-bottom:8px">
+      <div style="display:flex;gap:8px">
+        <input id="modal-name-input" type="text" maxlength="60"
+          style="flex:1;background:var(--surface2);border:1px solid var(--accent);border-radius:8px;padding:8px 10px;font-size:14px;color:var(--text);font-family:var(--font-display);font-weight:700;outline:none">
+        <button onclick="saveRunName()"
+          style="background:var(--accent);color:#0a0a0f;border:none;padding:8px 14px;border-radius:8px;font-family:var(--font-display);font-weight:800;font-size:13px;cursor:pointer">
+          ✓
+        </button>
+        <button onclick="cancelEditName()"
+          style="background:var(--surface2);color:var(--muted);border:1px solid var(--border);padding:8px 12px;border-radius:8px;font-size:13px;cursor:pointer">
+          ✕
+        </button>
+      </div>
+    </div>
     <div class="modal-date" id="modal-date">—</div>
     <div class="modal-stats">
       <div class="modal-stat"><div class="modal-stat-val" id="modal-dist">—</div><div class="modal-stat-lbl">km</div></div>
@@ -990,15 +1165,37 @@ const _stravaCodeOnLoad = (() => {
   // Only capture if it looks like a Strava callback (has scope with 'activity')
   if (code && scope && scope.includes('activity')) {
     console.log('Strava code captured:', code.substring(0, 10) + '...');
-    // Don't clean URL yet — Supabase might need it
-    // We'll clean it in handleStravaCallback
+    // Restore the Supabase session saved before the OAuth redirect
+    const accessToken = sessionStorage.getItem('pace_session_access');
+    const refreshToken = sessionStorage.getItem('pace_session_refresh');
+    if (accessToken && refreshToken) {
+      console.log('Restoring session from sessionStorage for Strava callback...');
+      // Set session manually — this fires SIGNED_IN which triggers our auth handler
+      supabase.createClient && setTimeout(async () => {
+        try {
+          await supa.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+        } catch(e) { console.log('Session restore error:', e.message); }
+        sessionStorage.removeItem('pace_session_access');
+        sessionStorage.removeItem('pace_session_refresh');
+      }, 100);
+    }
     return code;
   }
   return null;
 })();
 const SUPA_URL = 'https://urtvucvjkfffwhkdfclp.supabase.co';
 const SUPA_KEY = 'sb_publishable_x0COUdZugcp_Ft70WYu4iQ__7NirBOA';
-const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
+// persistSession:false — Supabase will NOT store the session in localStorage.
+// This prevents auto-login on page load/refresh. Users must always log in explicitly.
+// The session lives only in memory for the duration of the tab.
+// detectSessionInUrl:true is still needed for the Strava OAuth callback.
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: true,
+  }
+});
 let currentUser = null;
 
 async function doLogin() {
@@ -1018,13 +1215,25 @@ async function doSignup() {
   else { showLoginError('✓ Verifica o teu email para confirmar a conta.'); setLoginLoading(false); }
 }
 async function doLogout() {
-  try { await supa.auth.signOut(); } catch(e) {}
+  // Clear state immediately
   runs = []; gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
   stravaTokens = null;
   currentUser = null;
-  // Clear IndexedDB cache
-  try { await Promise.all([dbSet('runs',[]),dbSet('gpxRoutes',{}),dbSet('gpxSplits',{}),dbSet('gpxPoints',{})]); } catch(e){}
+  _activeUserId = null;
+  setLoginLoading(false);
   showLoginScreen();
+  // Clear session storage and localStorage Supabase keys
+  sessionStorage.clear();
+  Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k));
+  // AWAIT IndexedDB clear — must finish before next login reads stale data
+  try {
+    await Promise.all([
+      dbSet('runs', []), dbSet('gpxRoutes', {}),
+      dbSet('gpxSplits', {}), dbSet('gpxPoints', {}),
+      dbSet('owner_user_id', null),
+    ]);
+  } catch(e) {}
+  supa.auth.signOut().catch(() => {});
 }
 function showLoginError(msg) {
   const el = document.getElementById('login-error');
@@ -1052,29 +1261,71 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Auth state — drives the whole app lifecycle
+// With persistSession:false, SIGNED_IN only fires on:
+//   1. Explicit login (user clicked Entrar)
+//   2. Strava OAuth callback (detectSessionInUrl picks up the token from URL)
+// It will NEVER fire automatically on page load/refresh.
+let _appBooted = false;
+let _activeUserId = null;
+
 supa.auth.onAuthStateChange(async (event, session) => {
   console.log('Auth event:', event, 'user:', session?.user?.email);
-  if (session?.user) {
-    currentUser = session.user;
-    showApp();
-    console.log('stravaCode:', _stravaCodeOnLoad, 'event:', event);
-    if (_stravaCodeOnLoad && event === 'SIGNED_IN') {
-      console.log('Processing Strava callback before load...');
-      await handleStravaCallback(_stravaCodeOnLoad);
-    }
-    console.log('Starting load...');
-    try { await load(); } catch(e) { console.log('load error:', e.message); }
-    console.log('Load done, rendering...');
-    try { await loadStravaTokens(); } catch(e) { console.log('loadStrava error:', e.message); }
-    renderAll();
-    console.log('renderAll done, runs:', runs.length);
-  } else {
+
+  if (!session?.user) {
+    _appBooted = false;
+    _activeUserId = null;
+    setLoginLoading(false);
     currentUser = null;
     runs = []; gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
     stravaTokens = null;
     showLoginScreen();
+    return;
   }
+
+  // Only act on SIGNED_IN
+  if (event !== 'SIGNED_IN') return;
+
+  // Ignore duplicate events for the same user
+  if (_activeUserId === session.user.id) {
+    console.log('Auth: duplicate SIGNED_IN for same user, ignoring');
+    return;
+  }
+  _activeUserId = session.user.id;
+  currentUser = session.user;
+  showApp();
+
+  // Handle Strava OAuth callback if present
+  if (_stravaCodeOnLoad && !_appBooted) {
+    await handleStravaCallback(_stravaCodeOnLoad);
+  }
+  _appBooted = true;
+
+  try { await load(); } catch(e) { console.log('load error:', e.message); }
+  try { await loadStravaTokens(); } catch(e) { console.log('loadStrava error:', e.message); }
+  try { await loadPlano(); } catch(e) { console.log('loadPlano error:', e.message); }
+  renderAll();
+  console.log('renderAll done, runs:', runs.length);
 });
+
+// On page load, always try to restore IndexedDB data immediately.
+// This runs independently of auth — if the user has local cached data,
+// we pre-load it so it's ready the moment they log in (no delay after login).
+(async () => {
+  try {
+    await openDB();
+    const [r, rt, sp, pt] = await Promise.all([
+      dbGet('runs'), dbGet('gpxRoutes'), dbGet('gpxSplits'), dbGet('gpxPoints')
+    ]);
+    if (r && r.length > 0) {
+      runs = r;
+      if (rt) gpxRoutes = rt;
+      if (sp) gpxSplits = sp;
+      if (pt) gpxPoints = pt;
+      applyRaceOverrides();
+      console.log('Pre-loaded', runs.length, 'runs from IndexedDB');
+    }
+  } catch(e) { /* silent — IndexedDB may be empty */ }
+})();
 
 // ══════════════════════════════════════════
 //  INDEXEDDB (cache local)
@@ -1118,6 +1369,7 @@ async function save() {
     await Promise.all([
       dbSet('runs', runs), dbSet('gpxRoutes', gpxRoutes),
       dbSet('gpxSplits', gpxSplits), dbSet('gpxPoints', gpxPoints),
+      dbSet('owner_user_id', currentUser?.id || null),
     ]);
   } catch(e) { console.warn('IndexedDB save error:', e); }
 
@@ -1143,25 +1395,68 @@ async function save() {
 //  Aplicadas após load() e após cada import.
 //  Para adicionar: { date: 'YYYY-MM-DD', name: '...', dist: X.X }
 // ══════════════════════════════════════════
-const RACE_OVERRIDES = [
-  {
-    date: '2026-01-10',          // Corrida dos Reis PVZ 2026
-    name: 'Corrida dos Reis PVZ 2026',
-  },
-  {
-    date: '2026-03-15',          // Corrida do Pai 2026
-    name: 'Corrida do Pai 2026',
-    dist: 10.0,                  // oficial (Strava: 9.99km)
-    secs: 2920,                  // oficial 48:40
-    completeSplits: true,        // extrapolar último split parcial até à distância oficial
-  },
-];
+const MY_USER_ID = 'ac9cfa1f-6247-4b79-91da-ad4ce2a202b0';
+// Function instead of const — currentUser is null at script load time
+function getRaceOverrides() {
+  if (currentUser?.id !== MY_USER_ID) return [];
+  return [
+    {
+      date: '2026-01-10',          // Corrida dos Reis PVZ 2026
+      name: 'Corrida dos Reis PVZ 2026',
+    },
+    {
+      date: '2026-03-15',          // Corrida do Pai 2026
+      name: 'Corrida do Dia do Pai 2026',
+      dist: 10.0,                  // oficial (Strava: 9.99km)
+      secs: 2920,                  // oficial 48:40
+      completeSplits: true,        // extrapolar último split parcial até à distância oficial
+    },
+  ];
+}
+
+// Recalculate splits from gpxPoints for runs that have missing/wrong splits
+function recalcSplitsFromPoints() {
+  let fixed = 0;
+  for (const run of runs) {
+    const pts = gpxPoints[run.id];
+    if (!pts || pts.length < 2) continue;
+    // Only recalc if no splits exist yet
+    if (gpxSplits[run.id] && gpxSplits[run.id].length > 0) continue;
+    const totalKm = Math.floor(pts[pts.length - 1].dist);
+    if (totalKm < 1) continue;
+
+    // Interpolate time at each km boundary
+    const kmTimes = [pts[0].t];
+    for (let km = 1; km <= totalKm; km++) {
+      let i = 0;
+      while (i < pts.length - 1 && pts[i + 1].dist < km) i++;
+      if (i >= pts.length - 1) break;
+      const d0 = pts[i].dist, d1 = pts[i + 1].dist;
+      const t0 = pts[i].t,    t1 = pts[i + 1].t;
+      const frac = d1 > d0 ? (km - d0) / (d1 - d0) : 0;
+      kmTimes.push(t0 + frac * (t1 - t0));
+    }
+    const splits = [];
+    for (let k = 1; k < kmTimes.length; k++) {
+      const secs = Math.round((kmTimes[k] - kmTimes[k - 1]) / 1000);
+      if (secs > 60 && secs < 1800) splits.push(secs);
+    }
+    if (splits.length) {
+      gpxSplits[run.id] = splits;
+      fixed++;
+    }
+  }
+  if (fixed > 0) {
+    console.log('recalcSplits: fixed', fixed, 'runs');
+    dbSet('gpxSplits', gpxSplits).catch(() => {});
+  }
+}
 
 function applyRaceOverrides() {
-  for (const ov of RACE_OVERRIDES) {
+  for (const ov of getRaceOverrides()) {
     const run = runs.find(r => r.date.startsWith(ov.date));
     if (!run) continue;
-    if (ov.name) run.name = ov.name;
+    if (ov.name && !run._customName) run.name = ov.name;
     if (ov.dist) run.dist = ov.dist;
     if (ov.secs) run.secs = ov.secs;
 
@@ -1207,61 +1502,125 @@ function applyRaceOverrides() {
               gpxSplits[run.id][gpxSplits[run.id].length - 1] = adjustedLast;
             }
           }
+          // Recalculate bestSplit now that splits have changed
+          run.bestSplit = Math.min(...gpxSplits[run.id]);
         }
       }
     }
   }
+
+  // Recalculate missing splits from gpxPoints
+  recalcSplitsFromPoints();
+
+  // Always sync bestSplit from gpxSplits (source of truth) for every run
+  for (const run of runs) {
+    const s = gpxSplits[run.id];
+    if (s && s.length) run.bestSplit = Math.min(...s);
+  }
+
+  // Migrate old names: "53ª corrida" → "53ª" (strip " corrida" suffix)
+  let renamed = false;
+  for (const run of runs) {
+    if (!run._customName && /^\d+ª corrida$/.test(run.name)) {
+      run.name = run.name.replace(' corrida', '');
+      renamed = true;
+    }
+  }
+  if (renamed) {
+    dbSet('runs', runs).catch(() => {});
+  }
+}
+
+function showAppLoading(on) {
+  const el = document.getElementById('app-loading');
+  if (!el) return;
+  el.style.display = on ? 'flex' : 'none';
 }
 
 async function load() {
-  // Load from IndexedDB cache first (instant)
+  // Step 1: Load from IndexedDB (instant, works offline)
   console.log('load: opening IndexedDB...');
+  let hasLocalData = false;
   try {
     await openDB();
     console.log('load: IndexedDB open, fetching...');
-    const [r, rt, sp, pt] = await Promise.all([
-      dbGet('runs'), dbGet('gpxRoutes'), dbGet('gpxSplits'), dbGet('gpxPoints')
+    const [r, rt, sp, pt, ownerId] = await Promise.all([
+      dbGet('runs'), dbGet('gpxRoutes'), dbGet('gpxSplits'), dbGet('gpxPoints'),
+      dbGet('owner_user_id'),
     ]);
-    if (r)  runs = r;
-    if (rt) gpxRoutes = rt;
-    if (sp) gpxSplits = sp;
-    if (pt) gpxPoints = pt;
-    applyRaceOverrides();
+    // Only use cached data if it belongs to the current user
+    if (r && r.length > 0 && ownerId === currentUser?.id) {
+      runs = r; hasLocalData = true;
+      if (rt) gpxRoutes = rt;
+      if (sp) gpxSplits = sp;
+      if (pt) gpxPoints = pt;
+      applyRaceOverrides();
+      dbSet('runs', runs).catch(() => {}); // persist bestSplit corrections
+    } else if (ownerId !== currentUser?.id) {
+      // Stale data from a different user — clear it
+      console.log('load: IndexedDB has data from different user, clearing...');
+      await Promise.all([
+        dbSet('runs', []), dbSet('gpxRoutes', {}),
+        dbSet('gpxSplits', {}), dbSet('gpxPoints', {}),
+        dbSet('owner_user_id', currentUser?.id),
+      ]);
+    }
     console.log('load: IndexedDB done, runs:', runs.length);
   } catch(e) {
     console.log('load: IndexedDB error:', e.message);
-    runs = []; gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
   }
 
-  // Then fetch from Supabase with timeout
-  if (!currentUser) return;
+  // Step 2: If we have local data, render immediately — don't wait for Supabase
+  if (hasLocalData) {
+    renderAll();
+  } else {
+    showAppLoading(true);
+  }
+
+  // Step 3: Sync from Supabase in background (source of truth)
+  if (!currentUser) { showAppLoading(false); return; }
   console.log('load: fetching from Supabase...');
   try {
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000));
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000));
     const fetchData = Promise.all([
       supa.from('runs').select('data').eq('user_id', currentUser.id),
       supa.from('gpx_data').select('id,routes,splits,points').eq('user_id', currentUser.id),
     ]);
-    const [{ data: runsData }, { data: gpxData }] = await Promise.race([fetchData, timeout]);
-    console.log('load: Supabase returned', runsData?.length, 'runs');
-    if (runsData) {
-      runs = runsData.map(r => r.data);
-      gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
-      (gpxData || []).forEach(g => {
-        if (g.routes) gpxRoutes[g.id] = g.routes;
-        if (g.splits) gpxSplits[g.id] = g.splits;
-        if (g.points) gpxPoints[g.id] = g.points;
-      });
-      applyRaceOverrides();
-      Promise.all([
-        dbSet('runs', runs), dbSet('gpxRoutes', gpxRoutes),
-        dbSet('gpxSplits', gpxSplits), dbSet('gpxPoints', gpxPoints),
-      ]).catch(() => {});
+    const results = await Promise.race([fetchData, timeout]);
+    const runsData = results[0]?.data;
+    const gpxData  = results[1]?.data;
+    console.log('load: Supabase returned', runsData?.length ?? 'undefined', 'runs');
+    if (!runsData || !Array.isArray(runsData)) {
+      console.warn('load: invalid runsData, keeping local data');
+    } else {
+      const localCount = runs.length;
+      if (runsData.length > 0 && runsData.length >= localCount) {
+        // Supabase has data and at least as many runs as local — use it
+        runs = runsData.map(r => r.data);
+        gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
+        (gpxData || []).forEach(g => {
+          if (g.routes) gpxRoutes[g.id] = g.routes;
+          if (g.splits) gpxSplits[g.id] = g.splits;
+          if (g.points) gpxPoints[g.id] = g.points;
+        });
+        applyRaceOverrides();
+        Promise.all([
+          dbSet('runs', runs), dbSet('gpxRoutes', gpxRoutes),
+          dbSet('gpxSplits', gpxSplits), dbSet('gpxPoints', gpxPoints),
+          dbSet('owner_user_id', currentUser?.id || null),
+        ]).catch(() => {});
+        renderAll();
+      } else if (runsData.length === 0 && localCount === 0) {
+        // New user with no runs anywhere — render empty state
+        renderAll();
+      }
+      // If Supabase returns fewer runs than local, keep local data (don't overwrite)
     }
-    renderAll();
   } catch(e) {
     console.warn('load: Supabase error:', e.message);
-    renderAll();
+    // Timeout or error — IndexedDB data already rendered, that's fine
+  } finally {
+    showAppLoading(false);
   }
 }
 
@@ -1269,13 +1628,22 @@ async function load() {
 //  NAVIGATION
 // ══════════════════════════════════════════
 function showPage(id, btn) {
+  // Handle regular .page elements
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('page-' + id).classList.add('active');
+  // Hide plano page (not in .page system)
+  document.getElementById('page-plano').style.display = 'none';
+
+  if (id === 'plano') {
+    document.getElementById('page-plano').style.display = 'block';
+  } else {
+    document.getElementById('page-' + id)?.classList.add('active');
+  }
   if (btn) btn.classList.add('active');
   if (id === 'map') initMap();
   if (id === 'analysis') renderAnalysis();
   if (id === 'heatmap') renderHeatmapPage();
+  if (id === 'plano') showPage_plano();
 }
 
 // ══════════════════════════════════════════
@@ -1452,7 +1820,7 @@ function parseGPX(text, filename) {
 
 async function finishImport(count) {
   runs.sort((a,b) => new Date(a.date) - new Date(b.date));
-  runs.forEach((r, i) => { r.name = `${i+1}ª corrida`; });
+  runs.forEach((r, i) => { if (!r._customName) r.name = `${i+1}ª`; });
   runs.sort((a,b) => new Date(b.date) - new Date(a.date));
   applyRaceOverrides(); // apply after numbering so names override the "Nª corrida" default
   await save();
@@ -2030,19 +2398,21 @@ function renderHeatmapPage() {
   document.getElementById('heatmap-empty').style.display = 'none';
   document.getElementById('heatmap-data').style.display = '';
 
-  const firstRun = new Date(runs[runs.length - 1].date); // runs sorted newest first
+  // Find oldest run explicitly (don't rely on sort order)
+  const firstRun = new Date(Math.min(...runs.map(r => new Date(r.date).getTime())));
   const now = new Date();
   const todayDow = (now.getDay() + 6) % 7;
-  const thisMonday = new Date(now);
-  thisMonday.setDate(now.getDate() - todayDow);
-  thisMonday.setHours(0, 0, 0, 0);
+  // Use UTC to avoid DST issues
+  const nowUTC2 = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const thisMondayUTC = nowUTC2 - todayDow * 86400000;
+  const thisMonday = new Date(thisMondayUTC);
   // How many weeks since first run?
   const firstDow = (firstRun.getDay() + 6) % 7;
-  const firstMonday = new Date(firstRun);
-  firstMonday.setDate(firstRun.getDate() - firstDow);
-  firstMonday.setHours(0, 0, 0, 0);
-  const weeksSinceFirst = Math.ceil((thisMonday - firstMonday) / (7 * 86400000)) + 1;
+  const firstRunUTC = Date.UTC(firstRun.getFullYear(), firstRun.getMonth(), firstRun.getDate());
+  const firstMondayUTC = firstRunUTC - firstDow * 86400000;
+  const weeksSinceFirst = Math.ceil((thisMondayUTC - firstMondayUTC) / (7 * 86400000)) + 1;
   const WEEKS = Math.max(weeksSinceFirst, 4);
+
 
   document.getElementById('heatmap-subtitle').textContent =
     `${runs.length} corridas · desde ${firstRun.toLocaleDateString('pt-PT',{month:'long',year:'numeric'})}`;
@@ -2099,10 +2469,10 @@ function renderHeatmap(WEEKS) {
 
   const now = new Date();
   const todayKey = now.toISOString().slice(0, 10);
-  const todayDow = (now.getDay() + 6) % 7;
-  const thisMonday = new Date(now);
-  thisMonday.setDate(now.getDate() - todayDow);
-  thisMonday.setHours(0, 0, 0, 0);
+  // Use UTC midnight to avoid DST issues
+  const nowUTC = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const todayDow = (now.getDay() + 6) % 7; // 0=Mon
+  const thisMondayMs = nowUTC - todayDow * 86400000;
 
   const LABEL_H = 20;
   const MONTH_W = 24;
@@ -2133,20 +2503,21 @@ function renderHeatmap(WEEKS) {
   let lastShownMonth = -1;
 
   for (let w = 0; w < WEEKS; w++) {
-    const rowMonday = new Date(thisMonday);
-    rowMonday.setDate(thisMonday.getDate() - w * 7);
+    const rowMondayMs = thisMondayMs - w * 7 * 86400000;
 
     for (let d = 0; d < DAYS; d++) {
-      const day = new Date(rowMonday);
-      day.setDate(rowMonday.getDate() + d);
-      const mo = day.getMonth();
+      const dayMs = rowMondayMs + d * 86400000;
+      const day = new Date(dayMs);
+      const mo = day.getUTCMonth();
       if (mo !== lastShownMonth) {
         const labelY = LABEL_H + w * (cellSize + gap) + Math.round(cellSize / 2) + 3;
         ctx.textAlign = 'center';
         ctx.fillStyle = 'rgba(107,107,128,.8)';
         ctx.font = '7px DM Mono, monospace';
+        // Use UTC date for label
+        const labelDate = new Date(rowMondayMs + d * 86400000);
         ctx.fillText(
-          day.toLocaleDateString('pt-PT', { month: 'short' }).slice(0, 3).toUpperCase(),
+          labelDate.toLocaleDateString('pt-PT', { month: 'short', timeZone: 'UTC' }).slice(0, 3).toUpperCase(),
           MONTH_W / 2, labelY
         );
         lastShownMonth = mo;
@@ -2155,8 +2526,9 @@ function renderHeatmap(WEEKS) {
     }
 
     for (let d = 0; d < DAYS; d++) {
-      const day = new Date(rowMonday);
-      day.setDate(rowMonday.getDate() + d);
+      // Use UTC to avoid DST issues (e.g. Oct 26 clock change)
+      const dayMs = rowMondayMs + d * 86400000;
+      const day = new Date(dayMs);
       const key = day.toISOString().slice(0, 10);
       const km  = dayMap[key] || 0;
       const isFuture = key > todayKey;
@@ -2416,8 +2788,8 @@ function renderRunsList(list) {
           <div style="font-family:var(--font-display);font-size:12px;font-weight:700;line-height:1;${isActiveSortDate}">${dateShort}</div>
           <div style="font-size:9px;color:var(--muted)">data</div>
         </div>
-        <div style="width:48px;text-align:right">
-          <div style="font-family:var(--font-display);font-size:16px;font-weight:800;line-height:1;${isActiveSortDist}">${r.dist.toFixed(1)}</div>
+        <div style="width:52px;text-align:right">
+          <div style="font-family:var(--font-display);font-size:${r.dist >= 10 ? '14px' : '16px'};font-weight:800;line-height:1;${isActiveSortDist}">${r.dist.toFixed(1)}</div>
           <div style="font-size:9px;color:var(--muted)">km</div>
         </div>
         <div style="width:48px;text-align:right">
@@ -2628,6 +3000,35 @@ function closeModal(e) {
     document.getElementById('run-modal').classList.remove('open');
   }
 }
+
+function editRunName() {
+  const r = runs.find(x => x.id === currentRunId);
+  if (!r) return;
+  document.getElementById('modal-name-input').value = r.name;
+  document.getElementById('modal-name-edit').style.display = '';
+  document.getElementById('btn-edit-name').style.display = 'none';
+  document.getElementById('modal-name-input').focus();
+}
+
+function cancelEditName() {
+  document.getElementById('modal-name-edit').style.display = 'none';
+  document.getElementById('btn-edit-name').style.display = '';
+}
+
+async function saveRunName() {
+  const r = runs.find(x => x.id === currentRunId);
+  if (!r) return;
+  const newName = document.getElementById('modal-name-input').value.trim();
+  if (!newName) return;
+  r.name = newName;
+  r._customName = true; // protect from auto-renumbering
+  cancelEditName();
+  document.getElementById('modal-title').textContent = newName;
+  await save();
+  applyFiltersAndRender(); // refresh runs list
+  showToast('✓ Nome guardado');
+}
+
 async function deleteCurrentRun() {
   if (!currentRunId) return;
   const r = runs.find(x => x.id === currentRunId);
@@ -3136,7 +3537,7 @@ function renderPBs() {
     });
 
     // Inject official race results from RACE_OVERRIDES when dist matches target
-    for (const ov of RACE_OVERRIDES) {
+    for (const ov of getRaceOverrides()) {
       if (!ov.secs || !ov.dist) continue;
       if (Math.abs(ov.dist - t.km) > 0.1) continue; // only inject for matching distance
       const run = runs.find(r => r.date.startsWith(ov.date));
@@ -3221,13 +3622,13 @@ function initMap() {
 
   const cl = document.getElementById('map-run-checklist');
   cl.innerHTML = gpxRuns.map(r => `
-    <label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;background:var(--surface2);border:1px solid var(--border)">
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;background:var(--surface2);border:1px solid var(--border)">
       <input type="checkbox" data-id="${r.id}" ${mapSelectedIds.has(r.id)?'checked':''} onchange="mapToggleRun('${r.id}',this.checked)"
-        style="accent-color:${colorMap[r.id]};width:14px;height:14px;flex-shrink:0">
+        style="accent-color:${colorMap[r.id]};width:14px;height:14px;flex-shrink:0;cursor:pointer">
       <span style="width:10px;height:10px;border-radius:50%;background:${colorMap[r.id]};flex-shrink:0"></span>
-      <span style="font-size:11px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name}</span>
-      <span style="font-size:10px;color:var(--muted);flex-shrink:0">${r.dist.toFixed(1)}km</span>
-    </label>`).join('');
+      <span onclick="openRunModal('${r.id}')" style="font-size:11px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" title="Ver detalhes">${r.name}</span>
+      <span onclick="openRunModal('${r.id}')" style="font-size:10px;color:var(--accent2);flex-shrink:0;cursor:pointer;font-weight:700">${r.dist.toFixed(1)}km ↗</span>
+    </div>`).join('');
 
   if (!leafletMap) {
     leafletMap = L.map('leaflet-map', {zoomControl:false, attributionControl:false});
@@ -3274,9 +3675,17 @@ function redrawMapRoutes(colorMap) {
     const coords = gpxRoutes[r.id];
     const color = colorMap[r.id] || '#e8ff47';
     const isSingle = selected.length === 1;
-    const weight = isSingle ? 3 : 2;
-    const line = L.polyline(coords, {color, weight, opacity: isSingle ? 1 : 0.75}).addTo(leafletMap);
-    mapLayers.push(line);
+    const weight = isSingle ? 4 : 3;
+    const line = L.polyline(coords, {
+      color, weight,
+      opacity: isSingle ? 1 : 0.7,
+    }).addTo(leafletMap);
+    // Thicker invisible line for easier touch/click target
+    const hitLine = L.polyline(coords, {color, weight: 14, opacity: 0}).addTo(leafletMap);
+    hitLine.on('click', () => openRunModal(r.id));
+    hitLine.on('mouseover', () => { line.setStyle({weight: isSingle ? 5 : 4, opacity: 1}); hitLine.getElement()?.style && (hitLine.getElement().style.cursor='pointer'); });
+    hitLine.on('mouseout',  () => { line.setStyle({weight, opacity: isSingle ? 1 : 0.7}); });
+    mapLayers.push(line, hitLine);
     if (isSingle) {
       const start = L.circleMarker(coords[0], {radius:6, color, fillColor:color, fillOpacity:1}).addTo(leafletMap);
       const end = L.circleMarker(coords[coords.length-1], {radius:6, color:'#ff6b35', fillColor:'#ff6b35', fillOpacity:1}).addTo(leafletMap);
@@ -3450,7 +3859,7 @@ let stravaTokens = null; // { access_token, refresh_token, expires_at, athlete_i
 
 async function loadStravaTokens() {
   if (!currentUser) return;
-  const { data } = await supa.from('strava_tokens').select('*').eq('user_id', currentUser.id).single();
+  const { data } = await supa.from('strava_tokens').select('*').eq('user_id', currentUser.id).maybeSingle();
   stravaTokens = data || null;
   updateStravaBtn();
 }
@@ -3478,9 +3887,18 @@ async function stravaAction() {
   }
 }
 
-function connectStrava() {
+async function connectStrava() {
   const state = 'strava_' + Date.now();
   sessionStorage.setItem('strava_state', state);
+  // Save current session so we can restore it after the OAuth redirect
+  // (with persistSession:false the session lives only in memory)
+  try {
+    const { data } = await supa.auth.getSession();
+    if (data?.session) {
+      sessionStorage.setItem('pace_session_access', data.session.access_token);
+      sessionStorage.setItem('pace_session_refresh', data.session.refresh_token);
+    }
+  } catch(e) {}
   const url = `https://www.strava.com/oauth/authorize?client_id=${STRAVA_CLIENT_ID}&redirect_uri=${encodeURIComponent(STRAVA_REDIRECT)}&response_type=code&scope=${STRAVA_SCOPE}&state=${state}&approval_prompt=force`;
   window.location.href = url;
 }
@@ -3569,17 +3987,30 @@ async function syncStrava(fullSync = false) {
           gpxPoints[id] = times
             .map((t, i) => ({ dist: dists[i], t: new Date(act.start_date).getTime() + t * 1000 }))
             .filter((_, i) => i % 3 === 0);
-          // Build km splits
+          // Build km splits using interpolation at exact km boundaries
+          // For each km boundary, interpolate the exact time rather than snapping to nearest GPS point
           const splits = [];
-          let kmIdx = 1;
-          while (kmIdx <= Math.floor(dists[dists.length - 1])) {
-            const endI = dists.findIndex(d => d >= kmIdx);
-            const startI = dists.findIndex(d => d >= kmIdx - 1);
-            if (endI > 0 && startI >= 0) {
-              const secs = times[endI] - times[startI];
-              if (secs > 60 && secs < 1800) splits.push(Math.round(secs));
-            }
-            kmIdx++;
+          const totalKm = Math.floor(dists[dists.length - 1]);
+          
+          // Build array of interpolated times at each km boundary (0, 1, 2, ... totalKm)
+          const kmTimes = [0]; // km 0 = start = time 0
+          for (let km = 1; km <= totalKm; km++) {
+            // Find the two GPS points that straddle this km boundary
+            let i = 0;
+            while (i < dists.length - 1 && dists[i + 1] < km) i++;
+            if (i >= dists.length - 1) break; // ran out of data
+            const d0 = dists[i], d1 = dists[i + 1];
+            const t0 = times[i], t1 = times[i + 1];
+            // Linear interpolation
+            const frac = d1 > d0 ? (km - d0) / (d1 - d0) : 0;
+            const tKm = t0 + frac * (t1 - t0);
+            kmTimes.push(tKm);
+          }
+          
+          // Each split = time between consecutive km boundaries
+          for (let k = 1; k < kmTimes.length; k++) {
+            const secs = Math.round(kmTimes[k] - kmTimes[k - 1]);
+            if (secs > 60 && secs < 1800) splits.push(secs);
           }
           if (splits.length) {
             gpxSplits[id] = splits;
@@ -3595,8 +4026,8 @@ async function syncStrava(fullSync = false) {
     // Renumber all runs
     runs.sort((a, b) => new Date(a.date) - new Date(b.date));
     runs.forEach((r, i) => {
-      if (!RACE_OVERRIDES.some(ov => r.date.startsWith(ov.date))) {
-        r.name = `${i + 1}ª corrida`;
+      if (!getRaceOverrides().some(ov => r.date.startsWith(ov.date))) {
+        if (!r._customName) r.name = `${i + 1}ª`;
       }
     });
     runs.sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -3656,6 +4087,540 @@ async function handleStravaCallback(code) {
     showToast('Erro: ' + e.message, 8000);
   }
 }
+
+// ══════════════════════════════════════════
+//  PLANO DE TREINO
+// ══════════════════════════════════════════
+
+// ── State ──
+let planoConfig = {
+  tipo: 'prova-pace',   // 'prova-pace' | 'prova-tempo' | 'pace-geral'
+  dist: 10,             // km
+  dataProva: null,
+  paceMin: null, paceSec: null,   // objetivo pace
+  tempoH: 0, tempoMin: null,      // objetivo tempo
+  modoDias: 'num',      // 'num' | 'especificos'
+  numDias: 3,
+  diasEspecificos: [],  // [0-6] 0=dom
+};
+let planoData = null;   // generated plan object
+
+// ── Form controls ──
+function planoTipoChange(val) {
+  planoConfig.tipo = val;
+  const isPace  = val === 'prova-pace';
+  const isTempo = val === 'prova-tempo';
+  const isGeral = val === 'pace-geral';
+  document.getElementById('plano-dist-wrap').style.display  = isGeral ? 'none' : '';
+  document.getElementById('plano-data-wrap').style.display  = isGeral ? 'none' : '';
+  document.getElementById('plano-pace-wrap').style.display  = isTempo ? 'none' : '';
+  document.getElementById('plano-tempo-wrap').style.display = isPace  ? 'none' : '';
+}
+
+function planoSelectDist(val, el) {
+  planoConfig.dist = val;
+  el.closest('#plano-dist-chips').querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function planoModoDias(modo) {
+  planoConfig.modoDias = modo;
+  document.getElementById('plano-num-dias-wrap').style.display  = modo === 'num' ? '' : 'none';
+  document.getElementById('plano-esp-dias-wrap').style.display  = modo === 'especificos' ? '' : 'none';
+  document.getElementById('btn-modo-num').classList.toggle('active', modo === 'num');
+  document.getElementById('btn-modo-esp').classList.toggle('active', modo === 'especificos');
+}
+
+function planoSelectNumDias(val, el) {
+  planoConfig.numDias = val;
+  el.closest('#plano-num-chips').querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function planoToggleDia(val, el) {
+  const idx = planoConfig.diasEspecificos.indexOf(val);
+  if (idx === -1) planoConfig.diasEspecificos.push(val);
+  else planoConfig.diasEspecificos.splice(idx, 1);
+  el.classList.toggle('active', planoConfig.diasEspecificos.includes(val));
+}
+
+function planoShowTab(tab, btn) {
+  document.getElementById('plano-tab-semana').style.display   = tab === 'semana'   ? 'flex' : 'none';
+  document.getElementById('plano-tab-completo').style.display = tab === 'completo' ? 'flex' : 'none';
+  document.querySelectorAll('#plano-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+}
+
+// ── Athlete analysis ──
+function analisarCorredor() {
+  if (!runs.length) return null;
+  const sorted = [...runs].sort((a,b) => new Date(a.date)-new Date(b.date));
+  const recent = sorted.slice(-20);
+
+  // Average weekly volume (last 8 weeks)
+  const now = new Date();
+  let weekVols = [];
+  for (let w = 0; w < 8; w++) {
+    const wStart = new Date(now); wStart.setDate(now.getDate()-((now.getDay()+6)%7)-w*7); wStart.setHours(0,0,0,0);
+    const wEnd   = new Date(wStart); wEnd.setDate(wStart.getDate()+6); wEnd.setHours(23,59,59,999);
+    const km = runs.filter(r=>{const d=new Date(r.date);return d>=wStart&&d<=wEnd;}).reduce((s,r)=>s+r.dist,0);
+    if (km > 0) weekVols.push(km);
+  }
+  const avgWeeklyKm = weekVols.length ? weekVols.reduce((a,b)=>a+b,0)/weekVols.length : 0;
+
+  // Recent pace (secs/km) — last 8 runs with pace
+  const recentPaces = recent.filter(r=>r.secs&&r.dist>2).slice(-8).map(r=>r.secs/r.dist);
+  const avgPaceSec = recentPaces.length ? recentPaces.reduce((a,b)=>a+b,0)/recentPaces.length : 360;
+
+  // Best split as proxy for threshold/speed
+  const bestSplits = runs.filter(r=>r.bestSplit).map(r=>r.bestSplit);
+  const bestSplit  = bestSplits.length ? Math.min(...bestSplits) : avgPaceSec * 0.85;
+
+  // Long run capability (longest recent run)
+  const longestRun = Math.max(...recent.map(r=>r.dist), 0);
+
+  // Trend: is pace improving?
+  let trend = 0;
+  if (recentPaces.length >= 4) {
+    const half = Math.floor(recentPaces.length/2);
+    const older = recentPaces.slice(0,half).reduce((a,b)=>a+b,0)/half;
+    const newer = recentPaces.slice(-half).reduce((a,b)=>a+b,0)/half;
+    trend = older - newer; // positive = improving
+  }
+
+  return { avgWeeklyKm, avgPaceSec, bestSplit, longestRun, trend, recentPaces, weekVols };
+}
+
+// ── Pace zones from easy pace ──
+function calcZones(easyPace) {
+  // easyPace in secs/km
+  return {
+    easy:      Math.round(easyPace),               // Z1 aerobic base
+    tempo:     Math.round(easyPace * 0.88),        // Z3 threshold/limiar
+    interval:  Math.round(easyPace * 0.80),        // Z4 VO2max / series
+    race:      Math.round(easyPace * 0.85),        // Z3-4 race pace
+    longRun:   Math.round(easyPace * 1.08),        // Z1-2 long run
+  };
+}
+
+// ── Determine easy pace from objective or history ──
+function getTargetPace(athlete) {
+  const cfg = planoConfig;
+  let targetPaceSec = null;
+
+  if (cfg.tipo === 'prova-pace') {
+    const m = parseInt(document.getElementById('plano-pace-min').value) || 0;
+    const s = parseInt(document.getElementById('plano-pace-sec').value) || 0;
+    if (m > 0) targetPaceSec = m * 60 + s;
+  } else if (cfg.tipo === 'prova-tempo') {
+    const h   = parseInt(document.getElementById('plano-tempo-h').value)   || 0;
+    const min = parseInt(document.getElementById('plano-tempo-min').value) || 0;
+    const totalSecs = h * 3600 + min * 60;
+    if (totalSecs > 0 && cfg.dist > 0) targetPaceSec = totalSecs / cfg.dist;
+  }
+
+  // Easy pace = race pace / 0.85, or use athlete's current easy pace
+  if (targetPaceSec) {
+    const easyFromTarget = targetPaceSec / 0.85;
+    // Blend with current fitness — don't generate impossible plan
+    const easyFromHistory = athlete.avgPaceSec * 1.10;
+    return Math.max(easyFromTarget, easyFromHistory * 0.95);
+  }
+  return athlete.avgPaceSec * 1.10; // 10% easier than current avg
+}
+
+// ── Workout builder ──
+function buildWorkout(type, zones, weekNum, totalWeeks, baseDist) {
+  // type: 'A'=continuo, 'B1'=series, 'B2'=limiar, 'C'=longo
+  const p = s => fmtPace(s, 1);
+  const prog = weekNum / totalWeeks; // 0..1
+
+  if (type === 'C') {
+    // Long run: progressively longer, taper last 2 weeks
+    const taper = weekNum > totalWeeks - 2 ? 0.85 : 1;
+    const dist = Math.round((baseDist * (1.2 + prog * 0.6) * taper) * 2) / 2;
+    const pace = zones.longRun;
+    return {
+      tipo: 'C', nome: 'Corrida longa',
+      descricao: `Ritmo confortável e constante. Foca na resistência, não na velocidade.`,
+      distTotal: `${dist}km`,
+      duracaoMin: Math.round(dist * pace / 60),
+      segmentos: [
+        { seg: 'Aquecimento',   dist: '1km',            ritmo: p(zones.easy) },
+        { seg: 'Longo',        dist: `${dist - 1.5}km`, ritmo: p(zones.longRun) },
+        { seg: 'Retorno',      dist: '0.5km',           ritmo: p(zones.easy) },
+      ]
+    };
+  }
+
+  if (type === 'B2') {
+    // Threshold/Limiar: 20-40min at tempo pace
+    const tempoMin = Math.round(20 + prog * 20);
+    const tempoKm  = Math.round((tempoMin / (zones.tempo / 60)) * 10) / 10;
+    const dist = tempoKm + 2;
+    return {
+      tipo: 'B2', nome: 'Treino de limiar',
+      descricao: `${tempoMin} minutos a ritmo de limiar. Deves conseguir falar frases curtas.`,
+      distTotal: `${Math.round(dist * 10) / 10}km`,
+      duracaoMin: Math.round(dist * zones.tempo / 60),
+      segmentos: [
+        { seg: 'Aquecimento', dist: '1km',          ritmo: p(zones.easy) },
+        { seg: 'Limiar',      dist: `${tempoKm}km`, ritmo: p(zones.tempo) },
+        { seg: 'Retorno',     dist: '1km',           ritmo: p(zones.easy) },
+      ]
+    };
+  }
+
+  if (type === 'B1') {
+    // Intervals: 4-8 x 800m or 400m depending on week
+    const nSeries = Math.min(4 + Math.floor(prog * 4), 8);
+    const distSerie = weekNum <= totalWeeks / 2 ? '600m' : '800m';
+    const distSerieKm = weekNum <= totalWeeks / 2 ? 0.6 : 0.8;
+    const recup = '400m';
+    const totalKm = 1.5 + nSeries * (distSerieKm + 0.4);
+    return {
+      tipo: 'B1', nome: 'Séries de velocidade',
+      descricao: `${nSeries}× ${distSerie} a ritmo de intervalo com recuperação de ${recup} a trote.`,
+      distTotal: `${Math.round(totalKm * 10) / 10}km`,
+      duracaoMin: Math.round(totalKm * zones.interval / 60 + nSeries * 2),
+      segmentos: [
+        { seg: 'Aquecimento',            dist: '1km',                   ritmo: p(zones.easy) },
+        { seg: `${nSeries}× ${distSerie}`, dist: `+ ${recup} recup`,   ritmo: p(zones.interval) },
+        { seg: 'Retorno',                dist: '0.5km',                 ritmo: p(zones.easy) },
+      ]
+    };
+  }
+
+  // A = Contínuo
+  const dist = Math.round((baseDist * (0.9 + prog * 0.3)) * 2) / 2;
+  const useRace = prog > 0.4;
+  return {
+    tipo: 'A', nome: useRace ? 'Contínuo a ritmo de prova' : 'Contínuo aeróbio',
+    descricao: useRace
+      ? `Mantém o ritmo objetivo de prova de forma controlada.`
+      : `Corrida contínua a ritmo confortável. Foca na consistência.`,
+    distTotal: `${dist}km`,
+    duracaoMin: Math.round(dist * (useRace ? zones.race : zones.easy) / 60),
+    segmentos: [
+      { seg: 'Aquecimento', dist: '1km',            ritmo: p(zones.easy) },
+      { seg: 'Contínuo',    dist: `${dist - 1.5}km`, ritmo: p(useRace ? zones.race : zones.easy) },
+      { seg: 'Retorno',     dist: '0.5km',           ritmo: p(zones.easy) },
+    ]
+  };
+}
+
+// ── Day names ──
+const DIAS_SEMANA = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+const DIAS_FULL   = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+
+// ── Distribute training days across week ──
+function distribuirDias(numDias, diasEspecificos, modoDias) {
+  if (modoDias === 'especificos' && diasEspecificos.length > 0) {
+    return diasEspecificos.sort((a,b) => a-b);
+  }
+  // Auto distribute with rest between hard days
+  const templates = {
+    2: [2, 6],       // ter, sab
+    3: [2, 4, 6],    // ter, qui, sab
+    4: [1, 3, 5, 6], // seg, qua, sex, sab
+    5: [1, 2, 4, 5, 6],
+  };
+  return templates[Math.min(numDias, 5)] || templates[3];
+}
+
+// ── Assign workout types to days ──
+function assignWorkoutTypes(days, weekNum, totalWeeks) {
+  const n = days.length;
+  const isTaper = weekNum > totalWeeks - 2;
+
+  if (n === 2) return ['A', 'C'];
+  if (n === 3) {
+    if (isTaper) return ['A', 'A', 'C'];
+    return weekNum % 2 === 0 ? ['B1', 'B2', 'C'] : ['A', 'B2', 'C'];
+  }
+  if (n === 4) {
+    if (isTaper) return ['A', 'A', 'B2', 'C'];
+    return ['A', 'B1', 'B2', 'C'];
+  }
+  // 5 days
+  if (isTaper) return ['A', 'A', 'B2', 'A', 'C'];
+  return ['A', 'B1', 'A', 'B2', 'C'];
+}
+
+// ── Generate full plan ──
+function gerarPlano() {
+  const athlete = analisarCorredor();
+  if (!athlete) { showToast('Sem corridas suficientes para gerar um plano.', 4000); return; }
+
+  const cfg = planoConfig;
+
+  // Validate days
+  const dias = distribuirDias(cfg.numDias, cfg.diasEspecificos, cfg.modoDias);
+  if (!dias.length) { showToast('Seleciona pelo menos 1 dia da semana.', 3000); return; }
+
+  // Determine number of weeks
+  let numSemanas = 8;
+  if (cfg.tipo !== 'pace-geral' && cfg.dataProva) {
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const prova = new Date(document.getElementById('plano-data-prova').value);
+    const diffDays = Math.ceil((prova - hoje) / 86400000);
+    numSemanas = Math.max(2, Math.min(24, Math.ceil(diffDays / 7)));
+  }
+
+  const easyPace = getTargetPace(athlete);
+  const zones    = calcZones(easyPace);
+  const baseDist = Math.max(athlete.avgWeeklyKm / Math.max(dias.length, 1), 4);
+
+  // Build title
+  let titulo = 'Melhorar pace geral';
+  let subtitulo = `${dias.length}× por semana · ${numSemanas} semanas`;
+  if (cfg.tipo === 'prova-pace') {
+    const m = parseInt(document.getElementById('plano-pace-min').value)||0;
+    const s = parseInt(document.getElementById('plano-pace-sec').value)||0;
+    titulo = `${cfg.dist}km a ${m}:${String(s).padStart(2,'0')}/km`;
+  } else if (cfg.tipo === 'prova-tempo') {
+    const h = parseInt(document.getElementById('plano-tempo-h').value)||0;
+    const min = parseInt(document.getElementById('plano-tempo-min').value)||0;
+    titulo = `${cfg.dist}km em ${h ? h+'h' : ''}${min}min`;
+  }
+  if (cfg.dataProva && cfg.tipo !== 'pace-geral') {
+    const d = new Date(document.getElementById('plano-data-prova').value);
+    subtitulo = `Prova: ${d.toLocaleDateString('pt-PT',{day:'2-digit',month:'short'})} · ${dias.length}× semana`;
+  }
+
+  // Build weeks
+  const semanas = [];
+  // Find the Monday of the current week as start
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const dow = (hoje.getDay()+6)%7;
+  const startMonday = new Date(hoje); startMonday.setDate(hoje.getDate()-dow);
+
+  for (let w = 0; w < numSemanas; w++) {
+    const types = assignWorkoutTypes(dias, w+1, numSemanas);
+    const treinos = dias.map((dia, i) => {
+      const workout = buildWorkout(types[i], zones, w+1, numSemanas, baseDist);
+      // Calculate actual date for this training day
+      const wMonday = new Date(startMonday); wMonday.setDate(startMonday.getDate() + w*7);
+      // dia: 0=sun,1=mon,...,6=sat → offset from monday
+      const offset = dia === 0 ? 6 : dia - 1;
+      const date = new Date(wMonday); date.setDate(wMonday.getDate() + offset);
+      return {
+        ...workout,
+        dia,
+        diaNome: DIAS_FULL[dia],
+        date: date.toISOString().split('T')[0],
+      };
+    });
+
+    const kmTotal = treinos.reduce((s,t) => {
+      const d = parseFloat(t.distTotal) || 0; return s+d;
+    }, 0);
+
+    const isTaper = w >= numSemanas - 2;
+    const resumos = ['Adaptação','Base aeróbia','Construção','Construção+','Desenvolvimento',
+                     'Intensificação','Pico de forma','Taper','Redução final'];
+    semanas.push({
+      num: w+1,
+      resumo: isTaper ? (w===numSemanas-1?'Redução final':'Taper') : resumos[Math.min(w, resumos.length-3)],
+      kmTotal: Math.round(kmTotal*10)/10,
+      treinos,
+    });
+  }
+
+  planoData = {
+    titulo, subtitulo,
+    geradoEm: new Date().toISOString(),
+    config: { ...cfg, dias },
+    zones,
+    semanas,
+  };
+
+  savePlano();
+  renderPlanoContent();
+}
+
+// ── Get current week index ──
+function getCurrentPlanWeek() {
+  if (!planoData?.geradoEm) return 0;
+  const gerado = new Date(planoData.geradoEm); gerado.setHours(0,0,0,0);
+  const dow = (gerado.getDay()+6)%7;
+  const firstMonday = new Date(gerado); firstMonday.setDate(gerado.getDate()-dow);
+  const now = new Date(); now.setHours(0,0,0,0);
+  const diffDays = Math.floor((now - firstMonday)/86400000);
+  return Math.min(Math.max(Math.floor(diffDays/7), 0), planoData.semanas.length-1);
+}
+
+// ── Type color ──
+function getTipoColor(tipo) {
+  if (tipo==='B1') return 'var(--accent)';
+  if (tipo==='B2') return 'var(--accent2)';
+  if (tipo==='C')  return '#60a5fa';
+  return 'var(--success)';
+}
+
+// ── Check if run was done for a training day ──
+function treinoFoiFeito(treinoDate) {
+  // Check if there's a run within ±1 day of the planned date
+  const d = new Date(treinoDate); d.setHours(0,0,0,0);
+  return runs.some(r => {
+    const rd = new Date(r.date); rd.setHours(0,0,0,0);
+    return Math.abs(rd-d) <= 86400000;
+  });
+}
+
+// ── Render a single workout card ──
+function renderTreinoCard(t, showDate=true) {
+  const done = treinoFoiFeito(t.date);
+  const isToday = t.date === new Date().toISOString().split('T')[0];
+  const isPast  = new Date(t.date) < new Date(new Date().toISOString().split('T')[0]);
+  const cor = getTipoColor(t.tipo);
+  const dateFmt = new Date(t.date).toLocaleDateString('pt-PT',{weekday:'short',day:'2-digit',month:'short'});
+  
+  return `
+  <div style="background:var(--surface);border:1px solid ${isToday?'rgba(232,255,71,.4)':done?'rgba(74,222,128,.2)':'var(--border)'};border-radius:14px;padding:14px 16px;${isPast&&!done?'opacity:.6':''}">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:34px;height:34px;border-radius:9px;background:${cor}22;border:1px solid ${cor}44;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <span style="font-family:var(--font-display);font-size:11px;font-weight:800;color:${cor}">${t.tipo}</span>
+        </div>
+        <div>
+          <div style="font-family:var(--font-display);font-size:14px;font-weight:800;${isToday?'color:var(--accent)':''}">${t.nome}${isToday?' 📍':done?' ✓':''}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:1px">${showDate?dateFmt+' · ':''}${t.distTotal} · ~${t.duracaoMin}min</div>
+        </div>
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">${t.descricao}</div>
+    <div style="background:var(--surface2);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:6px">
+      ${t.segmentos.map(s=>`
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:11px;color:var(--muted);min-width:90px;flex-shrink:0">${s.seg}</span>
+          <span style="font-size:11px;color:var(--text)">${s.dist}</span>
+          <span style="font-size:12px;font-family:var(--font-display);font-weight:700;color:${cor};margin-left:auto">${s.ritmo}</span>
+        </div>
+      `).join('')}
+    </div>
+  </div>`;
+}
+
+// ── Render plan ──
+function renderPlanoContent() {
+  if (!planoData) { showPage_plano(); return; }
+
+  document.getElementById('plano-setup').style.display   = 'none';
+  document.getElementById('plano-content').style.display = 'block';
+  document.getElementById('plano-titulo').textContent    = planoData.titulo;
+  document.getElementById('plano-subtitulo').textContent = planoData.subtitulo;
+
+  const semIdx = getCurrentPlanWeek();
+
+  // ── Esta semana ──
+  const semana = planoData.semanas[semIdx];
+  const semEl = document.getElementById('plano-tab-semana');
+  if (semana) {
+    const hoje = new Date().toISOString().split('T')[0];
+    const feitasSemana = semana.treinos.filter(t => treinoFoiFeito(t.date)).length;
+
+    semEl.innerHTML = `
+      <div style="background:linear-gradient(135deg,#111810,#0a0a0f);border:1px solid rgba(232,255,71,.2);border-radius:14px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-family:var(--font-display);font-size:12px;font-weight:700;color:var(--accent);letter-spacing:0.5px">SEMANA ${semana.num} DE ${planoData.semanas.length}</div>
+          <div style="font-family:var(--font-display);font-size:16px;font-weight:800;margin-top:2px">${semana.resumo}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">${semana.kmTotal}km previstos</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:var(--font-display);font-size:28px;font-weight:800;color:var(--accent);line-height:1">${feitasSemana}<span style="font-size:14px;color:var(--muted);font-weight:400">/${semana.treinos.length}</span></div>
+          <div style="font-size:10px;color:var(--muted)">treinos feitos</div>
+        </div>
+      </div>
+      ${semana.treinos.map(t => renderTreinoCard(t, true)).join('')}
+    `;
+  } else {
+    semEl.innerHTML = '<div style="text-align:center;color:var(--muted);padding:40px 0">Plano concluído 🎉</div>';
+  }
+
+  // ── Plano completo ──
+  const complEl = document.getElementById('plano-tab-completo');
+  complEl.innerHTML = planoData.semanas.map((sem, i) => {
+    const isPast    = i < semIdx;
+    const isCurrent = i === semIdx;
+    const feitasSem = sem.treinos.filter(t => treinoFoiFeito(t.date)).length;
+    return `
+    <div style="border-radius:14px;overflow:hidden">
+      <div style="background:${isCurrent?'rgba(232,255,71,.08)':'var(--surface)'};border:1px solid ${isCurrent?'rgba(232,255,71,.3)':'var(--border)'};padding:12px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;${isPast?'opacity:.55':''}"
+        onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'flex':'none'">
+        <div>
+          <div style="font-family:var(--font-display);font-size:11px;font-weight:700;color:${isCurrent?'var(--accent)':'var(--muted)'}">
+            ${isPast?'✓ ':''}Semana ${sem.num}${isCurrent?' · atual':''}
+          </div>
+          <div style="font-family:var(--font-display);font-size:14px;font-weight:700;margin-top:1px">${sem.resumo}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-family:var(--font-display);font-size:16px;font-weight:800;color:var(--accent)">${sem.kmTotal}<span style="font-size:10px;color:var(--muted);font-weight:400">km</span></div>
+          <div style="font-size:10px;color:var(--muted)">${feitasSem}/${sem.treinos.length} treinos</div>
+        </div>
+      </div>
+      <div style="display:none;flex-direction:column;gap:8px;padding:8px 0 4px">
+        ${sem.treinos.map(t => renderTreinoCard(t, true)).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function showPage_plano() {
+  const setupEl   = document.getElementById('plano-setup');
+  const contentEl = document.getElementById('plano-content');
+  if (!setupEl || !contentEl) return;
+
+  const isValidPlan = planoData &&
+    typeof planoData === 'object' &&
+    Array.isArray(planoData.semanas) &&
+    planoData.semanas[0]?.treinos?.[0]?.segmentos;
+
+  if (isValidPlan) {
+    setupEl.style.display   = 'none';
+    contentEl.style.display = 'block';
+    renderPlanoContent();
+  } else {
+    planoData = null;
+    setupEl.style.display   = 'block';
+    contentEl.style.display = 'none';
+  }
+}
+
+function resetarPlano() {
+  if (!confirm('Apagar o plano atual e criar um novo?')) return;
+  planoData = null;
+  savePlano();
+  document.getElementById('plano-setup').style.display   = 'block';
+  document.getElementById('plano-content').style.display = 'none';
+}
+
+async function savePlano() {
+  try { await dbSet('plano', planoData); } catch(e) {}
+  if (!currentUser) return;
+  try {
+    await supa.from('user_settings').upsert({
+      user_id: currentUser.id, key: 'plano', value: planoData,
+    }, { onConflict: 'user_id,key' });
+  } catch(e) {}
+}
+
+async function loadPlano() {
+  try {
+    const local = await dbGet('plano');
+    // Treat null/false/undefined all as "no plan"
+    planoData = (local && typeof local === 'object' && Array.isArray(local.semanas)) ? local : null;
+    if (planoData) return;
+  } catch(e) {}
+  if (!currentUser) return;
+  try {
+    const { data } = await supa.from('user_settings')
+      .select('value').eq('user_id', currentUser.id).eq('key', 'plano').maybeSingle();
+    const v = data?.value;
+    planoData = (v && typeof v === 'object' && Array.isArray(v.semanas)) ? v : null;
+  } catch(e) {}
+}
+
 // ══════════════════════════════════════════
 // Init: show login screen while auth state is determined
 showLoginScreen();
@@ -3688,6 +4653,3 @@ if ('serviceWorker' in navigator) {
 </script>
 </body>
 </html>
-
-// fallback call
-function __forcePlano(){showPage_plano();}
