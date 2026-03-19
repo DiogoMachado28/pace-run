@@ -96,7 +96,6 @@ header {
 /* ── PAGES ── */
 .page { display: none; animation: fadeIn .3s ease; }
 .page.active { display: block; }
-#page-plano.active { animation: none; } /* plano has its own content reveal */
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
 /* ── BOTTOM NAV ── */
@@ -892,7 +891,7 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
       </div>
 
     <!-- PLANO -->
-    <div class="page" id="page-plano" style="min-height:200px">
+    <div id="page-plano" style="display:none;min-height:200px">
 
       <!-- SETUP -->
       <div id="plano-setup">
@@ -1629,9 +1628,17 @@ async function load() {
 //  NAVIGATION
 // ══════════════════════════════════════════
 function showPage(id, btn) {
+  // Handle regular .page elements
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('page-' + id)?.classList.add('active');
+  // Hide plano page (not in .page system)
+  document.getElementById('page-plano').style.display = 'none';
+
+  if (id === 'plano') {
+    document.getElementById('page-plano').style.display = 'block';
+  } else {
+    document.getElementById('page-' + id)?.classList.add('active');
+  }
   if (btn) btn.classList.add('active');
   if (id === 'map') initMap();
   if (id === 'analysis') renderAnalysis();
