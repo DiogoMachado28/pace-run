@@ -2393,15 +2393,15 @@ function renderHeatmapPage() {
   const firstRun = new Date(runs[runs.length - 1].date); // runs sorted newest first
   const now = new Date();
   const todayDow = (now.getDay() + 6) % 7;
-  const thisMonday = new Date(now);
-  thisMonday.setDate(now.getDate() - todayDow);
-  thisMonday.setHours(0, 0, 0, 0);
+  // Use UTC to avoid DST issues
+  const nowUTC2 = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const thisMondayUTC = nowUTC2 - todayDow * 86400000;
+  const thisMonday = new Date(thisMondayUTC);
   // How many weeks since first run?
   const firstDow = (firstRun.getDay() + 6) % 7;
-  const firstMonday = new Date(firstRun);
-  firstMonday.setDate(firstRun.getDate() - firstDow);
-  firstMonday.setHours(0, 0, 0, 0);
-  const weeksSinceFirst = Math.ceil((thisMonday - firstMonday) / (7 * 86400000)) + 1;
+  const firstRunUTC = Date.UTC(firstRun.getFullYear(), firstRun.getMonth(), firstRun.getDate());
+  const firstMondayUTC = firstRunUTC - firstDow * 86400000;
+  const weeksSinceFirst = Math.ceil((thisMondayUTC - firstMondayUTC) / (7 * 86400000)) + 1;
   const WEEKS = Math.max(weeksSinceFirst, 4);
 
   document.getElementById('heatmap-subtitle').textContent =
@@ -2459,10 +2459,10 @@ function renderHeatmap(WEEKS) {
 
   const now = new Date();
   const todayKey = now.toISOString().slice(0, 10);
-  const todayDow = (now.getDay() + 6) % 7;
-  const thisMonday = new Date(now);
-  thisMonday.setDate(now.getDate() - todayDow);
-  thisMonday.setHours(0, 0, 0, 0);
+  // Use UTC midnight to avoid DST issues
+  const nowUTC = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const todayDow = (now.getDay() + 6) % 7; // 0=Mon
+  const thisMondayMs = nowUTC - todayDow * 86400000;
 
   const LABEL_H = 20;
   const MONTH_W = 24;
@@ -2493,20 +2493,21 @@ function renderHeatmap(WEEKS) {
   let lastShownMonth = -1;
 
   for (let w = 0; w < WEEKS; w++) {
-    // Use UTC arithmetic to avoid DST skipping days
-    const rowMonday = new Date(thisMonday.getTime() - w * 7 * 86400000);
+    const rowMondayMs = thisMondayMs - w * 7 * 86400000;
 
     for (let d = 0; d < DAYS; d++) {
-      const day = new Date(rowMonday);
-      day.setDate(rowMonday.getDate() + d);
-      const mo = day.getMonth();
+      const dayMs = rowMondayMs + d * 86400000;
+      const day = new Date(dayMs);
+      const mo = day.getUTCMonth();
       if (mo !== lastShownMonth) {
         const labelY = LABEL_H + w * (cellSize + gap) + Math.round(cellSize / 2) + 3;
         ctx.textAlign = 'center';
         ctx.fillStyle = 'rgba(107,107,128,.8)';
         ctx.font = '7px DM Mono, monospace';
+        // Use UTC date for label
+        const labelDate = new Date(rowMondayMs + d * 86400000);
         ctx.fillText(
-          day.toLocaleDateString('pt-PT', { month: 'short' }).slice(0, 3).toUpperCase(),
+          labelDate.toLocaleDateString('pt-PT', { month: 'short', timeZone: 'UTC' }).slice(0, 3).toUpperCase(),
           MONTH_W / 2, labelY
         );
         lastShownMonth = mo;
@@ -4556,14 +4557,17 @@ function renderPlanoContent() {
 }
 
 function showPage_plano() {
+  console.log('showPage_plano called, planoData:', !!planoData);
+  const setupEl   = document.getElementById('plano-setup');
+  const contentEl = document.getElementById('plano-content');
+  console.log('setup el:', !!setupEl, 'content el:', !!contentEl);
+  if (!setupEl || !contentEl) { console.error('plano elements not found!'); return; }
   if (planoData) {
     renderPlanoContent();
   } else {
-    document.getElementById('plano-setup').style.display   = 'block';
-    document.getElementById('plano-content').style.display = 'none';
-    // Scroll to top when showing setup
-    const content = document.getElementById('content');
-    if (content) content.scrollTop = 0;
+    setupEl.style.display   = 'block';
+    contentEl.style.display = 'none';
+    document.getElementById('content')?.scrollTo(0, 0);
   }
 }
 
