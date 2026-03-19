@@ -1087,7 +1087,27 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
 <div class="modal-overlay" id="run-modal" onclick="closeModal(event)">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title" id="modal-title">—</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px">
+      <div class="modal-title" id="modal-title" style="margin-bottom:0">—</div>
+      <button onclick="editRunName()" id="btn-edit-name"
+        style="font-size:10px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:6px;cursor:pointer;flex-shrink:0;font-family:var(--font-display);font-weight:700">
+        ✎ editar
+      </button>
+    </div>
+    <div id="modal-name-edit" style="display:none;margin-bottom:8px">
+      <div style="display:flex;gap:8px">
+        <input id="modal-name-input" type="text" maxlength="60"
+          style="flex:1;background:var(--surface2);border:1px solid var(--accent);border-radius:8px;padding:8px 10px;font-size:14px;color:var(--text);font-family:var(--font-display);font-weight:700;outline:none">
+        <button onclick="saveRunName()"
+          style="background:var(--accent);color:#0a0a0f;border:none;padding:8px 14px;border-radius:8px;font-family:var(--font-display);font-weight:800;font-size:13px;cursor:pointer">
+          ✓
+        </button>
+        <button onclick="cancelEditName()"
+          style="background:var(--surface2);color:var(--muted);border:1px solid var(--border);padding:8px 12px;border-radius:8px;font-size:13px;cursor:pointer">
+          ✕
+        </button>
+      </div>
+    </div>
     <div class="modal-date" id="modal-date">—</div>
     <div class="modal-stats">
       <div class="modal-stat"><div class="modal-stat-val" id="modal-dist">—</div><div class="modal-stat-lbl">km</div></div>
@@ -1386,7 +1406,7 @@ function getRaceOverrides() {
     },
     {
       date: '2026-03-15',          // Corrida do Pai 2026
-      name: 'Corrida do Pai 2026',
+      name: 'Corrida do Dia do Pai 2026',
       dist: 10.0,                  // oficial (Strava: 9.99km)
       secs: 2920,                  // oficial 48:40
       completeSplits: true,        // extrapolar último split parcial até à distância oficial
@@ -1436,7 +1456,7 @@ function applyRaceOverrides() {
   for (const ov of getRaceOverrides()) {
     const run = runs.find(r => r.date.startsWith(ov.date));
     if (!run) continue;
-    if (ov.name) run.name = ov.name;
+    if (ov.name && !run._customName) run.name = ov.name;
     if (ov.dist) run.dist = ov.dist;
     if (ov.secs) run.secs = ov.secs;
 
@@ -1780,7 +1800,7 @@ function parseGPX(text, filename) {
 
 async function finishImport(count) {
   runs.sort((a,b) => new Date(a.date) - new Date(b.date));
-  runs.forEach((r, i) => { r.name = `${i+1}ª corrida`; });
+  runs.forEach((r, i) => { if (!r._customName) r.name = `${i+1}ª`; });
   runs.sort((a,b) => new Date(b.date) - new Date(a.date));
   applyRaceOverrides(); // apply after numbering so names override the "Nª corrida" default
   await save();
@@ -2461,8 +2481,8 @@ function renderHeatmap(WEEKS) {
   let lastShownMonth = -1;
 
   for (let w = 0; w < WEEKS; w++) {
-    const rowMonday = new Date(thisMonday);
-    rowMonday.setDate(thisMonday.getDate() - w * 7);
+    // Use UTC arithmetic to avoid DST skipping days
+    const rowMonday = new Date(thisMonday.getTime() - w * 7 * 86400000);
 
     for (let d = 0; d < DAYS; d++) {
       const day = new Date(rowMonday);
@@ -2483,8 +2503,9 @@ function renderHeatmap(WEEKS) {
     }
 
     for (let d = 0; d < DAYS; d++) {
-      const day = new Date(rowMonday);
-      day.setDate(rowMonday.getDate() + d);
+      // Use UTC to avoid DST issues (e.g. Oct 26 clock change)
+      const dayMs = rowMonday.getTime() + d * 86400000;
+      const day = new Date(dayMs);
       const key = day.toISOString().slice(0, 10);
       const km  = dayMap[key] || 0;
       const isFuture = key > todayKey;
@@ -2956,6 +2977,35 @@ function closeModal(e) {
     document.getElementById('run-modal').classList.remove('open');
   }
 }
+
+function editRunName() {
+  const r = runs.find(x => x.id === currentRunId);
+  if (!r) return;
+  document.getElementById('modal-name-input').value = r.name;
+  document.getElementById('modal-name-edit').style.display = '';
+  document.getElementById('btn-edit-name').style.display = 'none';
+  document.getElementById('modal-name-input').focus();
+}
+
+function cancelEditName() {
+  document.getElementById('modal-name-edit').style.display = 'none';
+  document.getElementById('btn-edit-name').style.display = '';
+}
+
+async function saveRunName() {
+  const r = runs.find(x => x.id === currentRunId);
+  if (!r) return;
+  const newName = document.getElementById('modal-name-input').value.trim();
+  if (!newName) return;
+  r.name = newName;
+  r._customName = true; // protect from auto-renumbering
+  cancelEditName();
+  document.getElementById('modal-title').textContent = newName;
+  await save();
+  applyFiltersAndRender(); // refresh runs list
+  showToast('✓ Nome guardado');
+}
+
 async function deleteCurrentRun() {
   if (!currentRunId) return;
   const r = runs.find(x => x.id === currentRunId);
@@ -3954,7 +4004,7 @@ async function syncStrava(fullSync = false) {
     runs.sort((a, b) => new Date(a.date) - new Date(b.date));
     runs.forEach((r, i) => {
       if (!getRaceOverrides().some(ov => r.date.startsWith(ov.date))) {
-        r.name = `${i + 1}ª corrida`;
+        if (!r._customName) r.name = `${i + 1}ª`;
       }
     });
     runs.sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -4499,6 +4549,9 @@ function showPage_plano() {
   } else {
     document.getElementById('plano-setup').style.display   = 'block';
     document.getElementById('plano-content').style.display = 'none';
+    // Scroll to top when showing setup
+    const content = document.getElementById('content');
+    if (content) content.scrollTop = 0;
   }
 }
 
