@@ -2517,7 +2517,7 @@ function renderHeatmap(WEEKS) {
 
     for (let d = 0; d < DAYS; d++) {
       // Use UTC to avoid DST issues (e.g. Oct 26 clock change)
-      const dayMs = rowMonday.getTime() + d * 86400000;
+      const dayMs = rowMondayMs + d * 86400000;
       const day = new Date(dayMs);
       const key = day.toISOString().slice(0, 10);
       const km  = dayMap[key] || 0;
@@ -4557,14 +4557,23 @@ function renderPlanoContent() {
 }
 
 function showPage_plano() {
-  console.log('showPage_plano called, planoData:', !!planoData);
   const setupEl   = document.getElementById('plano-setup');
   const contentEl = document.getElementById('plano-content');
-  console.log('setup el:', !!setupEl, 'content el:', !!contentEl);
-  if (!setupEl || !contentEl) { console.error('plano elements not found!'); return; }
-  if (planoData) {
+  if (!setupEl || !contentEl) return;
+
+  // Validate plan data has the new format (needs 'semanas' with 'treinos[].segmentos')
+  const isValidPlan = planoData &&
+    Array.isArray(planoData.semanas) &&
+    planoData.semanas[0]?.treinos?.[0]?.segmentos;
+
+  if (isValidPlan) {
     renderPlanoContent();
   } else {
+    // No plan or old format — clear and show setup
+    if (planoData && !isValidPlan) {
+      planoData = null;
+      savePlano();
+    }
     setupEl.style.display   = 'block';
     contentEl.style.display = 'none';
     document.getElementById('content')?.scrollTo(0, 0);
