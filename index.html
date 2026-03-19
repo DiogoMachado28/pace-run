@@ -1033,6 +1033,7 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
       </div>
     </div>
   </div>
+  </div>
 
   <nav>
     <button class="nav-btn active" onclick="showPage('dashboard',this)">
@@ -1055,7 +1056,7 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
       Mapa
     </button>
-    <button class="nav-btn" onclick="console.log('plano btn clicked'); showPage('plano',this)">
+    <button class="nav-btn" onclick="showPage('plano',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
       Plano
     </button>
@@ -4558,28 +4559,23 @@ function renderPlanoContent() {
 }
 
 function showPage_plano() {
-  console.log('showPage_plano called');
   const setupEl   = document.getElementById('plano-setup');
   const contentEl = document.getElementById('plano-content');
-  console.log('els:', !!setupEl, !!contentEl, 'planoData:', !!planoData);
+  if (!setupEl || !contentEl) return;
 
   const isValidPlan = planoData &&
+    typeof planoData === 'object' &&
     Array.isArray(planoData.semanas) &&
     planoData.semanas[0]?.treinos?.[0]?.segmentos;
 
   if (isValidPlan) {
-    setupEl.style.display    = 'none';
-    contentEl.style.display  = 'block';
-    contentEl.style.visibility = 'visible';
+    setupEl.style.display   = 'none';
+    contentEl.style.display = 'block';
     renderPlanoContent();
   } else {
-    if (planoData && !isValidPlan) {
-      planoData = null;
-      savePlano();
-    }
-    setupEl.style.display    = 'block';
-    contentEl.style.display  = 'none';
-    document.getElementById('content')?.scrollTo(0, 0);
+    planoData = null;
+    setupEl.style.display   = 'block';
+    contentEl.style.display = 'none';
   }
 }
 
@@ -4604,13 +4600,16 @@ async function savePlano() {
 async function loadPlano() {
   try {
     const local = await dbGet('plano');
-    if (local) { planoData = local; return; }
+    // Treat null/false/undefined all as "no plan"
+    planoData = (local && typeof local === 'object' && Array.isArray(local.semanas)) ? local : null;
+    if (planoData) return;
   } catch(e) {}
   if (!currentUser) return;
   try {
     const { data } = await supa.from('user_settings')
       .select('value').eq('user_id', currentUser.id).eq('key', 'plano').maybeSingle();
-    if (data?.value) planoData = data.value;
+    const v = data?.value;
+    planoData = (v && typeof v === 'object' && Array.isArray(v.semanas)) ? v : null;
   } catch(e) {}
 }
 
