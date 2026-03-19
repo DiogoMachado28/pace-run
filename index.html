@@ -894,7 +894,7 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
     <div class="page" id="page-plano">
 
       <!-- SETUP -->
-      <div id="plano-setup" style="display:none">
+      <div id="plano-setup">
         <div style="padding:16px 20px 8px">
           <div style="font-family:var(--font-display);font-size:24px;font-weight:800">Plano de treino</div>
           <div style="font-size:12px;color:var(--muted);margin-top:2px">Personalizado com base no teu histórico</div>
@@ -1635,7 +1635,7 @@ function showPage(id, btn) {
   if (id === 'map') initMap();
   if (id === 'analysis') renderAnalysis();
   if (id === 'heatmap') renderHeatmapPage();
-  if (id === 'plano') showPage_plano();
+  if (id === 'plano') setTimeout(showPage_plano, 0);
 }
 
 // ══════════════════════════════════════════
@@ -2390,7 +2390,8 @@ function renderHeatmapPage() {
   document.getElementById('heatmap-empty').style.display = 'none';
   document.getElementById('heatmap-data').style.display = '';
 
-  const firstRun = new Date(runs[runs.length - 1].date); // runs sorted newest first
+  // Find oldest run explicitly (don't rely on sort order)
+  const firstRun = new Date(Math.min(...runs.map(r => new Date(r.date).getTime())));
   const now = new Date();
   const todayDow = (now.getDay() + 6) % 7;
   // Use UTC to avoid DST issues
@@ -4560,28 +4561,24 @@ function renderPlanoContent() {
 function showPage_plano() {
   const setupEl   = document.getElementById('plano-setup');
   const contentEl = document.getElementById('plano-content');
-  console.log('showPage_plano: setupEl=', !!setupEl, 'contentEl=', !!contentEl, 'planoData=', planoData);
-  if (!setupEl || !contentEl) { console.error('plano elements missing!'); return; }
+  if (!setupEl || !contentEl) return;
 
-  // Validate plan data has the new format (needs 'semanas' with 'treinos[].segmentos')
   const isValidPlan = planoData &&
     Array.isArray(planoData.semanas) &&
     planoData.semanas[0]?.treinos?.[0]?.segmentos;
 
-  console.log('showPage_plano: isValidPlan=', isValidPlan);
-
   if (isValidPlan) {
+    setupEl.style.display    = 'none';
+    contentEl.style.display  = 'block';
+    contentEl.style.visibility = 'visible';
     renderPlanoContent();
   } else {
     if (planoData && !isValidPlan) {
-      console.log('showPage_plano: clearing old format plan');
       planoData = null;
       savePlano();
     }
-    console.log('showPage_plano: setting setup display=block, current=', setupEl.style.display);
-    setupEl.style.display   = 'block';
-    contentEl.style.display = 'none';
-    console.log('showPage_plano: after set, setup display=', setupEl.style.display);
+    setupEl.style.display    = 'block';
+    contentEl.style.display  = 'none';
     document.getElementById('content')?.scrollTo(0, 0);
   }
 }
