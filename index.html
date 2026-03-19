@@ -1032,7 +1032,6 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
         <div id="plano-tab-completo" style="display:none;padding:16px 20px 24px;display:none;flex-direction:column;gap:10px"></div>
       </div>
     </div>
-    </div>
   </div>
 
   <nav>
@@ -1516,6 +1515,18 @@ function applyRaceOverrides() {
   for (const run of runs) {
     const s = gpxSplits[run.id];
     if (s && s.length) run.bestSplit = Math.min(...s);
+  }
+
+  // Migrate old names: "53ª corrida" → "53ª" (strip " corrida" suffix)
+  let renamed = false;
+  for (const run of runs) {
+    if (!run._customName && /^\d+ª corrida$/.test(run.name)) {
+      run.name = run.name.replace(' corrida', '');
+      renamed = true;
+    }
+  }
+  if (renamed) {
+    dbSet('runs', runs).catch(() => {});
   }
 }
 
