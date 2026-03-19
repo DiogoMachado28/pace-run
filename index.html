@@ -4504,7 +4504,15 @@ function renderTreinoCard(t, showDate=true) {
 
 // ── Render plan ──
 function renderPlanoContent() {
-  if (!planoData) { showPage_plano(); return; }
+  if (!planoData) {
+  const setupEl = document.getElementById('plano-setup');
+  const contentEl = document.getElementById('plano-content');
+  if (setupEl && contentEl) {
+    setupEl.style.display = 'block';
+    contentEl.style.display = 'none';
+  }
+  return;
+}
 
   document.getElementById('plano-setup').style.display   = 'none';
   document.getElementById('plano-content').style.display = 'block';
