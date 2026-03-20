@@ -4581,23 +4581,54 @@ ${!athlete.hasSeriesHistory ? 'NUNCA FEZ SÉRIES B1 — não incluir B1 nas prim
 ${!athlete.hasThresholdHistory ? 'Pouca experiência com treinos de limiar.' : 'Tem experiência com treinos de limiar.'}
 Total corridas: ${athlete.totalRuns}${athlete.totalRuns < 5 ? ' (POUCOS DADOS — ser conservador no volume e intensidade)' : ''}`;
 
-  const prompt = `Treinador de corrida. Gera EXATAMENTE 2 semanas de treino em JSON.
+  // Pre-calculate zones to embed directly in prompt as concrete values
+  const zFacil     = athlete.zones ? fmtPace(athlete.zones.easyPace, 1)      : fmtPace(Math.round(athlete.avgPaceSec * 1.05), 1);
+  const zRecup     = athlete.zones ? fmtPace(athlete.zones.recoverPace, 1)   : fmtPace(Math.round(athlete.avgPaceSec * 1.15), 1);
+  const zLimiar    = athlete.zones ? fmtPace(athlete.zones.thresholdPace, 1) : fmtPace(Math.round(athlete.avgPaceSec * 0.92), 1);
+  const zSeries    = athlete.zones ? fmtPace(athlete.zones.intervalPace, 1)  : fmtPace(Math.round(athlete.avgPaceSec * 0.82), 1);
+  const zLongo     = athlete.zones ? fmtPace(Math.round(athlete.zones.easyPace * 1.06), 1) : fmtPace(Math.round(athlete.avgPaceSec * 1.10), 1);
+  const exDate1    = next14[0]?.split('(')[0] || '2025-03-22';
+  const exDate2    = next14[1]?.split('(')[0] || '2025-03-24';
+  const exDate3    = next14[2]?.split('(')[0] || '2025-03-26';
+  const exDia1     = next14[0]?.match(/\(([^)]+)\)/)?.[1] || 'Sáb';
+  const exDia2     = next14[1]?.match(/\(([^)]+)\)/)?.[1] || 'Ter';
+  const exDia3     = next14[2]?.match(/\(([^)]+)\)/)?.[1] || 'Qui';
+  const exDow1     = dias[0] ?? 6;
+  const exDow2     = dias[1] ?? 2;
+  const exDow3     = dias[2] ?? 4;
 
-HISTÓRICO:
+  const prompt = `Treinador de corrida. Gera 2 semanas de treino em JSON para este atleta.
+
+DADOS DO ATLETA:
 ${recentRuns}
-Volume médio: ${athlete.avgWeeklyKm.toFixed(1)}km/sem | Ritmo médio: ${fmtPace(athlete.avgPaceSec,1)}/km | Melhor km: ${athlete.bestSplit ? fmtPace(athlete.bestSplit,1)+'/km' : 'sem GPS'} | Longa: ${athlete.longestRun.toFixed(1)}km
+Volume: ${athlete.avgWeeklyKm.toFixed(1)}km/sem | Longa recente: ${athlete.longestRun.toFixed(1)}km
 ${zoneStr}
 ${trainingHistory}
 
 OBJETIVO: ${objetivoStr} ${semanasTotaisEstimadas}
-PRÓXIMAS DATAS DISPONÍVEIS (usa ESTAS datas exatas): ${next14.join(', ')}
-Os primeiros ${dias.length} são semana 1, os seguintes ${dias.length} são semana 2.
 
-REGRAS: max 2 treinos por semana; sem duros consecutivos; longo no último dia; ritmos do histórico real.
+DATAS DISPONÍVEIS — USA ESTAS DATAS EXATAS:
+${next14.map((d,i) => `${i<dias.length?'Semana 1':'Semana 2'}: ${d}`).join('
+')}
 
-RESPONDE SÓ COM JSON:
-{"titulo":"","subtitulo":"","analise":"","semanas":[{"num":1,"resumo":"","kmTotal":0,"treinos":[{"dia":2,"diaNome":"Terça","date":"2025-03-18","tipo":"A","nome":"","descricao":"","distTotal":"6km","duracaoMin":35,"segmentos":[{"seg":"Aquecimento","dist":"1km","ritmo":"5:50/km"},{"seg":"Corrida","dist":"4km","ritmo":"5:30/km"},{"seg":"Retorno","dist":"1km","ritmo":"5:50/km"}]}]},{"num":2,"resumo":"","kmTotal":0,"treinos":[]}]}
-Tipos: A=Continuo B1=Series(ex:6x800m a 4:30 recup 400m a 6:30) B2=Limiar C=Longo`;
+RITMOS OBRIGATÓRIOS — COPIA ESTES VALORES EXATOS, NÃO INVENTES OUTROS:
+- Aquecimento e retorno: ${zRecup}/km
+- Corrida fácil/aeróbio: ${zFacil}/km
+- Corrida longa: ${zLongo}/km
+- Limiar (B2): ${zLimiar}/km
+- Séries/Intervalos (B1): ${zSeries}/km
+
+REGRAS:
+1. Usa APENAS os ritmos acima — nunca outros valores
+2. Semana 1 é adaptação/base — não é taper
+3. Taper só nas últimas 2 semanas antes da prova
+4. Sem 2 treinos duros consecutivos
+5. Longo sempre no último dia disponível
+6. Volume próximo de ${athlete.avgWeeklyKm.toFixed(0)}km/semana (actual)
+
+RESPONDE SÓ COM JSON VÁLIDO:
+{"titulo":"10km em 45min","subtitulo":"Prova: 20/06 · 3× semana","analise":"1-2 frases","semanas":[{"num":1,"resumo":"Base aeróbia","kmTotal":${Math.round(athlete.avgWeeklyKm)},"treinos":[{"dia":${exDow1},"diaNome":"${exDia1}","date":"${exDate1}","tipo":"A","nome":"Contínuo fácil","descricao":"Corrida aeróbia a ritmo confortável","distTotal":"6km","duracaoMin":36,"segmentos":[{"seg":"Aquecimento","dist":"1km","ritmo":"${zRecup}/km"},{"seg":"Contínuo","dist":"4km","ritmo":"${zFacil}/km"},{"seg":"Retorno","dist":"1km","ritmo":"${zRecup}/km"}]},{"dia":${exDow2},"diaNome":"${exDia2}","date":"${exDate2}","tipo":"B2","nome":"Treino de limiar","descricao":"Bloco a ritmo de limiar","distTotal":"7km","duracaoMin":38,"segmentos":[{"seg":"Aquecimento","dist":"1.5km","ritmo":"${zRecup}/km"},{"seg":"Limiar","dist":"4km","ritmo":"${zLimiar}/km"},{"seg":"Retorno","dist":"1.5km","ritmo":"${zRecup}/km"}]},{"dia":${exDow3},"diaNome":"${exDia3}","date":"${exDate3}","tipo":"C","nome":"Corrida longa","descricao":"Resistência aeróbia","distTotal":"9km","duracaoMin":54,"segmentos":[{"seg":"Aquecimento","dist":"1km","ritmo":"${zRecup}/km"},{"seg":"Longo","dist":"7.5km","ritmo":"${zLongo}/km"},{"seg":"Retorno","dist":"0.5km","ritmo":"${zRecup}/km"}]}]},{"num":2,"resumo":"Construção","kmTotal":${Math.round(athlete.avgWeeklyKm*1.05)},"treinos":[]}]}
+Tipos: A=Continuo B1=Series(Nx dist+recup) B2=Limiar C=Longo`;
 
   const body = JSON.stringify({ prompt, user_id: currentUser.id });
   console.log('Sending to ai-plan:', { user_id: currentUser.id, promptLength: prompt.length, bodyLength: body.length });
