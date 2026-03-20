@@ -1160,6 +1160,7 @@ const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   }
 });
 let currentUser = null;
+let currentSession = null; // stored in memory since persistSession:false
 
 async function doLogin() {
   const email = document.getElementById('login-email').value.trim();
@@ -1182,6 +1183,7 @@ async function doLogout() {
   runs = []; gpxRoutes = {}; gpxSplits = {}; gpxPoints = {};
   stravaTokens = null;
   currentUser = null;
+  currentSession = null;
   _activeUserId = null;
   setLoginLoading(false);
   showLoginScreen();
@@ -1255,6 +1257,7 @@ supa.auth.onAuthStateChange(async (event, session) => {
   }
   _activeUserId = session.user.id;
   currentUser = session.user;
+  currentSession = session; // store for API calls (persistSession:false means getSession() won't work)
   showApp();
 
   // Handle Strava OAuth callback if present
@@ -3862,12 +3865,11 @@ async function getValidStravaToken() {
   if (!stravaTokens) return null;
   // Refresh if expired (with 5min buffer)
   if (Date.now() / 1000 > stravaTokens.expires_at - 300) {
-    const session1 = await supa.auth.getSession();
     const res = await fetch(STRAVA_EDGE_FN, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session1.data.session?.access_token}`,
+        'Authorization': `Bearer ${currentSession?.access_token}`,
       },
       body: JSON.stringify({ action: 'refresh', refresh_token: stravaTokens.refresh_token }),
     });
@@ -4005,12 +4007,11 @@ async function handleStravaCallback(code) {
   showToast('A trocar código Strava...', 8000);
   try {
     console.log('Calling edge function...');
-    const session2 = await supa.auth.getSession();
     const res = await fetch(STRAVA_EDGE_FN, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session2.data.session?.access_token}`,
+        'Authorization': `Bearer ${currentSession?.access_token}`,
       },
       body: JSON.stringify({ action: 'exchange', code }),
     });
@@ -4346,9 +4347,8 @@ async function gerarPlano() {
 }
 
 async function gerarPlanoComIA(athlete, cfg, dias, numSemanas, dataProvaInput) {
-  const session = await supa.auth.getSession();
-  const token = session.data.session?.access_token;
-  if (!token) throw new Error('Sem sessão');
+  const token = currentSession?.access_token;
+  if (!token) throw new Error('Sem sessão — faz login novamente');
 
   const hoje = new Date().toISOString().split('T')[0];
   const diasNomes = dias.map(d => ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d]).join(', ');
