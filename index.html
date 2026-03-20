@@ -894,90 +894,64 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
     <!-- PLANO -->
     <div class="page" id="page-plano">
       <div id="plano-setup">
-        <div style="padding:16px 20px 8px">
+        <div style="padding:16px 20px 12px">
           <div style="font-family:var(--font-display);font-size:24px;font-weight:800">Plano de treino</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:2px">Personalizado com base no teu histórico</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">Descreve o teu objetivo em linguagem natural</div>
         </div>
-        <div style="padding:0 20px 24px;display:flex;flex-direction:column;gap:14px">
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px">
-            <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Tipo de objetivo</div>
-            <div style="display:flex;flex-direction:column;gap:8px">
-              <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
-                <input type="radio" name="plano-tipo" value="prova-pace" checked onchange="planoTipoChange(this.value)" style="accent-color:var(--accent);width:16px;height:16px">
-                <span style="font-size:13px">Prova com pace objetivo <span style="color:var(--muted);font-size:11px">(ex: 10km a 4:48/km)</span></span>
-              </label>
-              <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
-                <input type="radio" name="plano-tipo" value="prova-tempo" onchange="planoTipoChange(this.value)" style="accent-color:var(--accent);width:16px;height:16px">
-                <span style="font-size:13px">Prova com tempo objetivo <span style="color:var(--muted);font-size:11px">(ex: 10km em 48min)</span></span>
-              </label>
-              <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
-                <input type="radio" name="plano-tipo" value="pace-geral" onchange="planoTipoChange(this.value)" style="accent-color:var(--accent);width:16px;height:16px">
-                <span style="font-size:13px">Melhorar pace geral <span style="color:var(--muted);font-size:11px">(sem data definida)</span></span>
-              </label>
+
+        <!-- Conversational input -->
+        <div style="padding:0 20px 16px">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden">
+            <!-- Chat messages -->
+            <div id="plano-chat" style="padding:16px;display:flex;flex-direction:column;gap:12px;min-height:80px">
+              <div style="display:flex;gap:10px;align-items:flex-start">
+                <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px">✦</div>
+                <div style="background:var(--surface2);border-radius:12px 12px 12px 4px;padding:10px 14px;font-size:13px;line-height:1.5;flex:1">
+                  Olá! Descreve o teu objetivo de corrida e eu crio um plano personalizado com base no teu histórico.<br><br>
+                  <span style="color:var(--muted);font-size:12px">Ex: "Quero correr 10km em menos de 48min no dia 15 de maio, consigo treinar 3 vezes por semana às terças, quintas e sábados"</span>
+                </div>
+              </div>
+            </div>
+            <!-- Input -->
+            <div style="border-top:1px solid var(--border);padding:12px;display:flex;gap:8px;align-items:flex-end">
+              <textarea id="plano-input" placeholder="Escreve aqui o teu objetivo..." rows="3"
+                style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--text);font-family:var(--font-mono);resize:none;outline:none;line-height:1.5"
+                onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviarMensagemPlano()}"
+              ></textarea>
+              <button onclick="enviarMensagemPlano()"
+                style="background:var(--accent);color:#0a0a0f;border:none;border-radius:10px;padding:10px 16px;font-family:var(--font-display);font-weight:800;font-size:14px;cursor:pointer;flex-shrink:0;height:44px">
+                →
+              </button>
             </div>
           </div>
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px">
-            <div id="plano-dist-wrap">
-              <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Distância</div>
-              <div style="display:flex;gap:8px;flex-wrap:wrap" id="plano-dist-chips">
-                <button class="filter-chip" onclick="planoSelectDist(5,this)">5km</button>
-                <button class="filter-chip active" onclick="planoSelectDist(10,this)">10km</button>
-                <button class="filter-chip" onclick="planoSelectDist(21.1,this)">Meia</button>
-                <button class="filter-chip" onclick="planoSelectDist(42.2,this)">Maratona</button>
-              </div>
-            </div>
-            <div id="plano-data-wrap">
-              <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Data da prova</div>
-              <input type="date" id="plano-data-prova" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:14px;color:var(--text);width:100%;box-sizing:border-box;font-family:var(--font-mono)">
-            </div>
-            <div id="plano-pace-wrap">
-              <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Pace objetivo (min:ss /km)</div>
-              <div style="display:flex;gap:8px;align-items:center">
-                <input type="number" id="plano-pace-min" min="3" max="9" placeholder="4" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:18px;color:var(--text);width:60px;text-align:center;font-family:var(--font-display);font-weight:800">
-                <span style="color:var(--muted);font-size:20px">:</span>
-                <input type="number" id="plano-pace-sec" min="0" max="59" placeholder="48" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:18px;color:var(--text);width:60px;text-align:center;font-family:var(--font-display);font-weight:800">
-                <span style="color:var(--muted);font-size:13px">/km</span>
-              </div>
-            </div>
-            <div id="plano-tempo-wrap" style="display:none">
-              <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Tempo objetivo</div>
-              <div style="display:flex;gap:8px;align-items:center">
-                <input type="number" id="plano-tempo-h" min="0" max="6" placeholder="0" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:18px;color:var(--text);width:60px;text-align:center;font-family:var(--font-display);font-weight:800">
-                <span style="color:var(--muted);font-size:20px">h</span>
-                <input type="number" id="plano-tempo-min" min="0" max="59" placeholder="48" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:18px;color:var(--text);width:60px;text-align:center;font-family:var(--font-display);font-weight:800">
-                <span style="color:var(--muted);font-size:13px">min</span>
-              </div>
-            </div>
+        </div>
+
+        <!-- Quick suggestions -->
+        <div style="padding:0 20px 24px">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px">Sugestões rápidas</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <button onclick="usarSugestao(this)" class="filter-chip" style="text-align:left;border-radius:10px;padding:10px 14px;font-size:12px;white-space:normal;height:auto">
+              🏁 Preparar uma prova de 10km daqui a 8 semanas, treinar 3x por semana
+            </button>
+            <button onclick="usarSugestao(this)" class="filter-chip" style="text-align:left;border-radius:10px;padding:10px 14px;font-size:12px;white-space:normal;height:auto">
+              ⚡ Melhorar o meu pace geral, treinar terça, quinta e sábado
+            </button>
+            <button onclick="usarSugestao(this)" class="filter-chip" style="text-align:left;border-radius:10px;padding:10px 14px;font-size:12px;white-space:normal;height:auto">
+              🏃 Aumentar o volume semanal gradualmente, 4 dias por semana
+            </button>
           </div>
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px">
-            <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Dias por semana</div>
-            <div style="display:flex;gap:8px;margin-bottom:12px">
-              <button class="filter-chip active" id="btn-modo-num" onclick="planoModoDias('num')">Nº de dias</button>
-              <button class="filter-chip" id="btn-modo-esp" onclick="planoModoDias('especificos')">Dias específicos</button>
-            </div>
-            <div id="plano-num-dias-wrap">
-              <div style="display:flex;gap:8px" id="plano-num-chips">
-                <button class="filter-chip" onclick="planoSelectNumDias(2,this)">2×</button>
-                <button class="filter-chip active" onclick="planoSelectNumDias(3,this)">3×</button>
-                <button class="filter-chip" onclick="planoSelectNumDias(4,this)">4×</button>
-                <button class="filter-chip" onclick="planoSelectNumDias(5,this)">5×</button>
-              </div>
-            </div>
-            <div id="plano-esp-dias-wrap" style="display:none">
-              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px" id="plano-dias-semana-chips">
-                <button class="filter-chip" onclick="planoToggleDia(1,this)">Seg</button>
-                <button class="filter-chip" onclick="planoToggleDia(2,this)">Ter</button>
-                <button class="filter-chip" onclick="planoToggleDia(3,this)">Qua</button>
-                <button class="filter-chip" onclick="planoToggleDia(4,this)">Qui</button>
-                <button class="filter-chip" onclick="planoToggleDia(5,this)">Sex</button>
-                <button class="filter-chip" onclick="planoToggleDia(6,this)">Sáb</button>
-                <button class="filter-chip" onclick="planoToggleDia(0,this)">Dom</button>
-              </div>
-            </div>
-          </div>
-          <button onclick="gerarPlano()" style="background:var(--accent);color:#0a0a0f;border:none;border-radius:12px;padding:14px;font-family:var(--font-display);font-size:15px;font-weight:800;cursor:pointer;letter-spacing:0.5px">
-            Gerar plano personalizado
-          </button>
+        </div>
+
+        <!-- Hidden fields still needed for gerarPlano() -->
+        <div style="display:none">
+          <input type="radio" name="plano-tipo" value="prova-pace" id="plano-tipo-pace">
+          <input type="radio" name="plano-tipo" value="prova-tempo" id="plano-tipo-tempo">
+          <input type="radio" name="plano-tipo" value="pace-geral" id="plano-tipo-geral" checked>
+          <input type="date" id="plano-data-prova">
+          <input type="number" id="plano-pace-min">
+          <input type="number" id="plano-pace-sec">
+          <input type="number" id="plano-tempo-h">
+          <input type="number" id="plano-tempo-min">
         </div>
       </div>
       <div id="plano-content" style="display:none">
@@ -4307,6 +4281,126 @@ function assignWorkoutTypes(days, weekNum, totalWeeks) {
 }
 
 // ── Generate full plan ──
+// ── Conversational plan setup ──
+function usarSugestao(btn) {
+  document.getElementById('plano-input').value = btn.textContent.trim().replace(/^[^\s]+\s/, '');
+  document.getElementById('plano-input').focus();
+}
+
+async function enviarMensagemPlano() {
+  const input = document.getElementById('plano-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+
+  // Add user message to chat
+  const chat = document.getElementById('plano-chat');
+  chat.innerHTML += `
+    <div style="display:flex;gap:10px;align-items:flex-start;justify-content:flex-end">
+      <div style="background:var(--accent);color:#0a0a0f;border-radius:12px 12px 4px 12px;padding:10px 14px;font-size:13px;max-width:85%">${msg}</div>
+    </div>`;
+
+  // Show thinking indicator
+  const thinkId = 'think-' + Date.now();
+  chat.innerHTML += `<div id="${thinkId}" style="display:flex;gap:10px;align-items:flex-start">
+    <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px">✦</div>
+    <div style="background:var(--surface2);border-radius:12px 12px 12px 4px;padding:10px 14px;font-size:13px;color:var(--muted)">A analisar...</div>
+  </div>`;
+  chat.scrollTop = chat.scrollHeight;
+
+  // Ask AI to interpret the message and extract plan config
+  try {
+    const interpretation = await interpretarObjetivo(msg);
+    document.getElementById(thinkId).remove();
+
+    if (interpretation.pronto) {
+      // AI has enough info — apply config and generate plan
+      aplicarConfigIA(interpretation);
+      chat.innerHTML += `<div style="display:flex;gap:10px;align-items:flex-start">
+        <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px">✦</div>
+        <div style="background:var(--surface2);border-radius:12px 12px 12px 4px;padding:10px 14px;font-size:13px;line-height:1.5">${interpretation.confirmacao}<br><br>
+          <button onclick="gerarPlano()" style="background:var(--accent);color:#0a0a0f;border:none;border-radius:8px;padding:8px 16px;font-family:var(--font-display);font-weight:800;font-size:13px;cursor:pointer;margin-top:4px">Gerar plano ✦</button>
+        </div>
+      </div>`;
+    } else {
+      // AI needs more info
+      chat.innerHTML += `<div style="display:flex;gap:10px;align-items:flex-start">
+        <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px">✦</div>
+        <div style="background:var(--surface2);border-radius:12px 12px 12px 4px;padding:10px 14px;font-size:13px;line-height:1.5">${interpretation.pergunta}</div>
+      </div>`;
+    }
+    chat.scrollTop = chat.scrollHeight;
+  } catch(e) {
+    document.getElementById(thinkId).remove();
+    // Fallback: use message as-is for objective
+    planoConfig.objetivoTexto = msg;
+    chat.innerHTML += `<div style="display:flex;gap:10px;align-items:flex-start">
+      <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px">✦</div>
+      <div style="background:var(--surface2);border-radius:12px 12px 12px 4px;padding:10px 14px;font-size:13px">
+        Entendido! Vou gerar um plano com base no teu objetivo.<br><br>
+        <button onclick="gerarPlano()" style="background:var(--accent);color:#0a0a0f;border:none;border-radius:8px;padding:8px 16px;font-family:var(--font-display);font-weight:800;font-size:13px;cursor:pointer">Gerar plano ✦</button>
+      </div>
+    </div>`;
+    chat.scrollTop = chat.scrollHeight;
+  }
+}
+
+async function interpretarObjetivo(msg) {
+  if (!currentUser?.id) throw new Error('sem sessão');
+  const hoje = new Date().toISOString().split('T')[0];
+  const prompt = `Analisa esta mensagem de um corredor e extrai informação para um plano de treino.
+Mensagem: "${msg}"
+Data de hoje: ${hoje}
+
+Responde APENAS com JSON:
+{
+  "pronto": true/false,
+  "pergunta": "se pronto=false, pergunta o que falta",
+  "confirmacao": "se pronto=true, confirma o que entendeste em 1-2 frases",
+  "tipo": "prova-pace|prova-tempo|pace-geral",
+  "dist": número em km ou null,
+  "dataProva": "YYYY-MM-DD ou null",
+  "paceMin": minutos do pace objetivo ou null,
+  "paceSec": segundos do pace objetivo ou null,
+  "tempoH": horas do tempo objetivo ou null,
+  "tempoMin": minutos do tempo objetivo ou null,
+  "dias": [lista de números 0-6 onde 0=Dom,1=Seg,...,6=Sáb] ou null,
+  "numDias": número de dias por semana ou null
+}`;
+
+  const body = JSON.stringify({ prompt, user_id: currentUser.id });
+  const res = await fetch('https://urtvucvjkfffwhkdfclp.supabase.co/functions/v1/ai-plan', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+  });
+  if (!res.ok) throw new Error('edge fn error');
+  const data = await res.json();
+  const text = data.text || '';
+  const jsonStart = text.indexOf('{'); const jsonEnd = text.lastIndexOf('}');
+  if (jsonStart === -1) throw new Error('no json');
+  return JSON.parse(text.slice(jsonStart, jsonEnd + 1));
+}
+
+function aplicarConfigIA(interp) {
+  if (interp.tipo) planoConfig.tipo = interp.tipo;
+  if (interp.dist) planoConfig.dist = interp.dist;
+  if (interp.dataProva) document.getElementById('plano-data-prova').value = interp.dataProva;
+  if (interp.paceMin != null) document.getElementById('plano-pace-min').value = interp.paceMin;
+  if (interp.paceSec != null) document.getElementById('plano-pace-sec').value = interp.paceSec;
+  if (interp.tempoH != null) document.getElementById('plano-tempo-h').value = interp.tempoH;
+  if (interp.tempoMin != null) document.getElementById('plano-tempo-min').value = interp.tempoMin;
+  if (interp.dias) { planoConfig.diasEspecificos = interp.dias; planoConfig.modoDias = 'especificos'; }
+  if (interp.numDias) { planoConfig.numDias = interp.numDias; planoConfig.modoDias = 'num'; }
+  if (interp.tipo) {
+    const radioMap = {'prova-pace':'plano-tipo-pace','prova-tempo':'plano-tipo-tempo','pace-geral':'plano-tipo-geral'};
+    const el = document.getElementById(radioMap[interp.tipo]);
+    if (el) el.checked = true;
+  }
+  // Store the original text as objective for the plan prompt
+  planoConfig.objetivoTexto = interp.confirmacao || '';
+}
+
 async function gerarPlano() {
   const athlete = analisarCorredor();
   if (!athlete) { showToast('Sem corridas suficientes para gerar um plano.', 4000); return; }
@@ -4349,23 +4443,30 @@ async function gerarPlanoComIA(athlete, cfg, dias, numSemanas, dataProvaInput) {
 
   const hoje = new Date().toISOString().split('T')[0];
   const diasNomes = dias.map(d => ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d]).join(', ');
-  const startMonday = (() => {
-    const now = new Date(); now.setHours(0,0,0,0);
-    const dow = (now.getDay()+6)%7;
-    const m = new Date(now); m.setDate(now.getDate()-dow);
-    return m;
-  })();
+  // Generate next 14 days from today with their weekday numbers
+  // so AI knows exactly which dates to use for training days
+  const next14 = [];
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() + i);
+    const dow = d.getDay(); // 0=Sun, 1=Mon, ...
+    if (dias.includes(dow)) {
+      next14.push(`${d.toISOString().split('T')[0]}(${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][dow]})`);
+    }
+  }
 
-  let objetivoStr = 'Melhorar pace geral sem data definida';
+  // Use natural language objective if set via chat, otherwise build from fields
+  let objetivoStr = cfg.objetivoTexto || 'Melhorar pace geral sem data definida';
   let semanasTotaisEstimadas = '';
-  if (cfg.tipo === 'prova-pace') {
-    const m = parseInt(document.getElementById('plano-pace-min').value)||0;
-    const s = parseInt(document.getElementById('plano-pace-sec').value)||0;
-    objetivoStr = `Correr ${cfg.dist}km a ${m}:${String(s).padStart(2,'0')}/km${dataProvaInput ? ' (prova: '+dataProvaInput+')' : ''}`;
-  } else if (cfg.tipo === 'prova-tempo') {
-    const h = parseInt(document.getElementById('plano-tempo-h').value)||0;
-    const min = parseInt(document.getElementById('plano-tempo-min').value)||0;
-    objetivoStr = `Completar ${cfg.dist}km em ${h?h+'h':''}${min}min${dataProvaInput ? ' (prova: '+dataProvaInput+')' : ''}`;
+  if (!cfg.objetivoTexto) {
+    if (cfg.tipo === 'prova-pace') {
+      const m = parseInt(document.getElementById('plano-pace-min').value)||0;
+      const s = parseInt(document.getElementById('plano-pace-sec').value)||0;
+      objetivoStr = `Correr ${cfg.dist}km a ${m}:${String(s).padStart(2,'0')}/km${dataProvaInput ? ' (prova: '+dataProvaInput+')' : ''}`;
+    } else if (cfg.tipo === 'prova-tempo') {
+      const h = parseInt(document.getElementById('plano-tempo-h').value)||0;
+      const min = parseInt(document.getElementById('plano-tempo-min').value)||0;
+      objetivoStr = `Completar ${cfg.dist}km em ${h?h+'h':''}${min}min${dataProvaInput ? ' (prova: '+dataProvaInput+')' : ''}`;
+    }
   }
   if (dataProvaInput && cfg.tipo !== 'pace-geral') {
     const semsLeft = Math.ceil((new Date(dataProvaInput) - new Date()) / (7*86400000));
@@ -4393,8 +4494,8 @@ ${recentRuns}
 Volume médio: ${athlete.avgWeeklyKm.toFixed(1)}km/sem | Ritmo: ${fmtPace(athlete.avgPaceSec,1)}/km | Melhor km: ${athlete.bestSplit ? fmtPace(athlete.bestSplit,1)+'/km' : 'N/A'} | Longa: ${athlete.longestRun.toFixed(1)}km
 
 OBJETIVO: ${objetivoStr} ${semanasTotaisEstimadas}
-DIAS: ${diasNomes} | SEMANA 1: ${startMonday.toISOString().split('T')[0]}
-DIAS MAP: ${dias.map(d=>`${d}=${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d]}`).join(',')}
+PRÓXIMAS DATAS DISPONÍVEIS (usa ESTAS datas exatas): ${next14.join(', ')}
+Os primeiros ${dias.length} são semana 1, os seguintes ${dias.length} são semana 2.
 
 REGRAS: max 2 treinos por semana; sem duros consecutivos; longo no último dia; ritmos do histórico real.
 
