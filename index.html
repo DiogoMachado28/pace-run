@@ -4345,6 +4345,121 @@ function assignWorkoutTypes(days, weekNum, totalWeeks) {
 }
 
 // ── Generate full plan ──
+// ── Realism validator ──
+// Returns null if OK, or { mensagem, sugestao, sugestaoCfg, toastMsg, permitirContinuar }
+function verificarRealismo(athlete) {
+  const cfg = planoConfig;
+  const dataProvaInput = document.getElementById('plano-data-prova').value;
+
+  // Get target pace in secs/km
+  let targetPaceSec = null;
+  let targetLabel = '';
+  if (cfg.tipo === 'prova-pace') {
+    const m = parseInt(document.getElementById('plano-pace-min').value) || 0;
+    const s = parseInt(document.getElementById('plano-pace-sec').value) || 0;
+    if (m > 0) { targetPaceSec = m * 60 + s; targetLabel = `${m}:${String(s).padStart(2,'0')}/km`; }
+  } else if (cfg.tipo === 'prova-tempo') {
+    const h   = parseInt(document.getElementById('plano-tempo-h').value)   || 0;
+    const min = parseInt(document.getElementById('plano-tempo-min').value) || 0;
+    const totalSecs = h * 3600 + min * 60;
+    if (totalSecs > 0 && cfg.dist > 0) {
+      targetPaceSec = totalSecs / cfg.dist;
+      targetLabel = `${h ? h+'h' : ''}${min}min em ${cfg.dist}km`;
+    }
+  }
+
+  if (!targetPaceSec) return null; // no target = no check needed
+
+  const currentPace = athlete.avgPaceSec; // secs/km
+  const improvement = (currentPace - targetPaceSec) / currentPace; // positive = needs improvement
+  const weeksAvailable = dataProvaInput
+    ? Math.max(0, Math.ceil((new Date(dataProvaInput) - new Date()) / (7 * 86400000)))
+    : 12;
+
+  // ── Case 1: Target is faster than best ever km split ──
+  // If aiming for a 10km pace faster than their best single km ever — physically impossible
+  if (athlete.bestSplit && targetPaceSec < athlete.bestSplit * 0.95) {
+    const realisticPace = Math.round(athlete.bestSplit * 1.05); // ~5% slower than best km as race pace
+    const realisticMin = Math.floor(realisticPace / 60);
+    const realisticSec = realisticPace % 60;
+    return {
+      toastMsg: 'Objetivo mais rápido que o teu melhor km alguma vez',
+      mensagem: `⚠️ <strong>Objetivo fisiologicamente impossível.</strong> O teu melhor km alguma vez foi ${fmtPace(athlete.bestSplit, 1)}/km. Manter ${targetLabel} durante ${cfg.dist || 10}km é fisicamente impossível — nenhum atleta consegue correr uma prova a ritmo superior ao seu melhor km isolado.`,
+      sugestao: `${realisticMin}:${String(realisticSec).padStart(2,'0')}/km — um objetivo ambicioso mas fisiologicamente possível`,
+      sugestaoCfg: { paceMin: realisticMin, paceSec: realisticSec, tipo: 'prova-pace' },
+      permitirContinuar: false,
+    };
+  }
+
+  // ── Case 2: Improvement > 15% — too much regardless of time ──
+  if (improvement > 0.15) {
+    // Calculate realistic target: max 8% improvement total (aggressive but achievable)
+    const realisticPace = Math.round(currentPace * 0.92);
+    const realisticMin = Math.floor(realisticPace / 60);
+    const realisticSec = realisticPace % 60;
+    const improvementPct = Math.round(improvement * 100);
+    return {
+      toastMsg: `Melhoria de ${improvementPct}% é irrealista`,
+      mensagem: `⚠️ <strong>Objetivo demasiado ambicioso.</strong> O teu ritmo médio actual é ${fmtPace(currentPace, 1)}/km. Atingir ${targetLabel} requer uma melhoria de <strong>${improvementPct}%</strong> — bem acima do máximo fisiologicamente sustentável (~8-10% no total com treino consistente).`,
+      sugestao: `${realisticMin}:${String(realisticSec).padStart(2,'0')}/km — melhoria de 8% sobre o teu ritmo actual, ambicioso e realista`,
+      sugestaoCfg: { paceMin: realisticMin, paceSec: realisticSec, tipo: 'prova-pace' },
+      permitirContinuar: false,
+    };
+  }
+
+  // ── Case 3: Improvement > 5% with less than 6 weeks ──
+  if (improvement > 0.05 && weeksAvailable < 6) {
+    const realisticPace = Math.round(currentPace * (1 - 0.01 * weeksAvailable)); // ~1%/week max
+    const realisticMin = Math.floor(realisticPace / 60);
+    const realisticSec = realisticPace % 60;
+    const weeksNeeded = Math.ceil(improvement / 0.015); // ~1.5%/week aggressive
+    return {
+      toastMsg: `Só ${weeksAvailable} semanas para ${Math.round(improvement*100)}% de melhoria`,
+      mensagem: `⚠️ <strong>Tempo insuficiente para este objetivo.</strong> Melhorar ${Math.round(improvement*100)}% em apenas ${weeksAvailable} semanas não é realista. Este nível de melhoria requer tipicamente <strong>${weeksNeeded} semanas</strong> de treino consistente.`,
+      sugestao: weeksAvailable >= 3
+        ? `${realisticMin}:${String(realisticSec).padStart(2,'0')}/km em ${weeksAvailable} semanas — melhoria de ~1%/semana`
+        : 'Mantém o objetivo para uma prova mais distante no tempo',
+      sugestaoCfg: weeksAvailable >= 3
+        ? { paceMin: realisticMin, paceSec: realisticSec, tipo: 'prova-pace' }
+        : null,
+      permitirContinuar: true, // allow if they insist but warn
+    };
+  }
+
+  // ── Case 4: Improvement 8-15% — possible but aggressive, note it ──
+  if (improvement > 0.08 && improvement <= 0.15) {
+    return {
+      toastMsg: `Objetivo ambicioso (${Math.round(improvement*100)}% de melhoria)`,
+      mensagem: `💪 <strong>Objetivo muito ambicioso.</strong> Requer uma melhoria de <strong>${Math.round(improvement*100)}%</strong> sobre o teu ritmo actual. É possível com treino consistente e dedicação, mas vai exigir compromisso total${weeksAvailable < 12 ? ' e o tempo disponível é curto' : ''}.`,
+      sugestao: null,
+      sugestaoCfg: null,
+      permitirContinuar: true, // just a warning, not a blocker
+    };
+  }
+
+  return null; // all good
+}
+
+function aplicarSugestaoRealismo() {
+  const sug = window._realismSugestao;
+  if (!sug) return;
+  if (sug.paceMin != null) document.getElementById('plano-pace-min').value = sug.paceMin;
+  if (sug.paceSec != null) document.getElementById('plano-pace-sec').value = sug.paceSec;
+  if (sug.tipo) planoConfig.tipo = sug.tipo;
+  window._realismSugestao = null;
+  // Update objetivoTexto to reflect new goal
+  planoConfig.objetivoTexto = '';
+  gerarPlanoForcar();
+}
+
+// gerarPlanoForcar — bypasses realism check (user insists on their goal)
+let _forcarPlano = false;
+async function gerarPlanoForcar() {
+  _forcarPlano = true;
+  await gerarPlano();
+  _forcarPlano = false;
+}
+
 // ── Conversational plan setup ──
 function usarSugestao(btn) {
   document.getElementById('plano-input').value = btn.textContent.trim().replace(/^[^\s]+\s/, '');
@@ -4483,6 +4598,35 @@ async function gerarPlano() {
     showToast(`Tens apenas ${athlete.totalRuns} corrida${athlete.totalRuns===1?'':'s'} — o plano será estimado com dados limitados.`, 4000);
   }
 
+  // ── Realism check ──
+  const realismWarning = _forcarPlano ? null : verificarRealismo(athlete);
+  if (realismWarning) {
+    const chat = document.getElementById('plano-chat');
+    if (chat) {
+      chat.innerHTML += `<div style="display:flex;gap:10px;align-items:flex-start">
+        <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px">✦</div>
+        <div style="background:rgba(255,107,53,.12);border:1px solid rgba(255,107,53,.3);border-radius:12px;padding:14px 16px;font-size:13px;line-height:1.7;flex:1">
+          ${realismWarning.mensagem}
+          ${realismWarning.sugestao ? '<br><br><strong style="color:var(--accent)">Sugestão realista:</strong> ' + realismWarning.sugestao : ''}
+          <br><br>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${realismWarning.sugestaoCfg ? `<button onclick="aplicarSugestaoRealismo()" style="background:var(--accent);color:#0a0a0f;border:none;border-radius:8px;padding:8px 14px;font-family:var(--font-display);font-weight:800;font-size:12px;cursor:pointer">Aceitar sugestão</button>` : ''}
+            <button onclick="gerarPlanoForcar()" style="background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-family:var(--font-display);font-size:12px;cursor:pointer">Manter objetivo original</button>
+          </div>
+        </div>
+      </div>`;
+      chat.scrollTop = chat.scrollHeight;
+      document.getElementById('page-plano').querySelector('#plano-loading-msg')?.remove();
+      document.getElementById('plano-setup').style.display = 'block';
+      // Store suggestion for aplicarSugestaoRealismo
+      window._realismSugestao = realismWarning.sugestaoCfg;
+    } else {
+      // No chat UI (renovar flow) — just warn and continue
+      showToast('⚠️ ' + realismWarning.toastMsg, 6000);
+    }
+    if (!realismWarning.permitirContinuar) return;
+  }
+
   const cfg = planoConfig;
   const dias = distribuirDias(cfg.numDias, cfg.diasEspecificos, cfg.modoDias);
   if (!dias.length) { showToast('Seleciona pelo menos 1 dia da semana.', 3000); return; }
@@ -4581,12 +4725,69 @@ ${!athlete.hasSeriesHistory ? 'NUNCA FEZ SÉRIES B1 — não incluir B1 nas prim
 ${!athlete.hasThresholdHistory ? 'Pouca experiência com treinos de limiar.' : 'Tem experiência com treinos de limiar.'}
 Total corridas: ${athlete.totalRuns}${athlete.totalRuns < 5 ? ' (POUCOS DADOS — ser conservador no volume e intensidade)' : ''}`;
 
-  // Pre-calculate zones to embed directly in prompt as concrete values
-  const zFacil     = athlete.zones ? fmtPace(athlete.zones.easyPace, 1)      : fmtPace(Math.round(athlete.avgPaceSec * 1.05), 1);
-  const zRecup     = athlete.zones ? fmtPace(athlete.zones.recoverPace, 1)   : fmtPace(Math.round(athlete.avgPaceSec * 1.15), 1);
-  const zLimiar    = athlete.zones ? fmtPace(athlete.zones.thresholdPace, 1) : fmtPace(Math.round(athlete.avgPaceSec * 0.92), 1);
-  const zSeries    = athlete.zones ? fmtPace(athlete.zones.intervalPace, 1)  : fmtPace(Math.round(athlete.avgPaceSec * 0.82), 1);
-  const zLongo     = athlete.zones ? fmtPace(Math.round(athlete.zones.easyPace * 1.06), 1) : fmtPace(Math.round(athlete.avgPaceSec * 1.10), 1);
+  // Round seconds to nearest 5s for clean pace display (e.g. 5:30 not 5:28)
+  const r5 = s => Math.round(s / 5) * 5;
+
+  // Zone paces (secs/km), rounded to 5s
+  // If GPS splits available use percentiles; otherwise derive from avg pace
+  // Zones based on Jack Daniels / Pfitzinger methodology:
+  //   Recovery:  easy + 15-20% slower
+  //   Easy/fácil: avg race pace + 60-90s/km  (can hold conversation)
+  //   Longo:      easy + 5-10s/km
+  //   Limiar:     10km race pace - 10-15s/km  (~88% max HR)
+  //   Series/VO2: 5km race pace  (~95-100% max HR)
+  let zRecupSec, zFacilSec, zLongoSec, zLimiarSec, zSeriesSec;
+
+  if (athlete.zones && athlete.zones.totalSplits >= 20) {
+    // Use real GPS data — p75 is easy, p50 is moderate, p25 is threshold, p10 is interval
+    zRecupSec  = r5(athlete.zones.recoverPace);          // p75 — very easy
+    zFacilSec  = r5(athlete.zones.easyPace);             // p50 — aerobic base
+    zLongoSec  = r5(athlete.zones.easyPace + 10);        // slightly slower than fácil
+    zLimiarSec = r5(athlete.zones.thresholdPace - 5);    // p25 minus small buffer
+    zSeriesSec = r5(athlete.zones.intervalPace);         // p10 — fast efforts
+  } else {
+    // Estimate from avg pace using standard percentages
+    const avg = athlete.avgPaceSec;
+    zRecupSec  = r5(avg * 1.15);
+    zFacilSec  = r5(avg * 1.05);
+    zLongoSec  = r5(avg * 1.08);
+    zLimiarSec = r5(avg * 0.90);
+    zSeriesSec = r5(avg * 0.82);
+  }
+
+  // If athlete has a race target, blend zones toward target pace
+  // Target pace = race pace → limiar should be ~5s/km slower than race pace
+  const targetPaceForZones = (() => {
+    const m = parseInt(document.getElementById('plano-pace-min').value) || 0;
+    const s = parseInt(document.getElementById('plano-pace-sec').value) || 0;
+    const h = parseInt(document.getElementById('plano-tempo-h').value) || 0;
+    const min2 = parseInt(document.getElementById('plano-tempo-min').value) || 0;
+    if (planoConfig.tipo === 'prova-pace' && m > 0) return m * 60 + s;
+    if (planoConfig.tipo === 'prova-tempo' && (h || min2) && planoConfig.dist) return (h*3600 + min2*60) / planoConfig.dist;
+    return null;
+  })();
+
+  if (targetPaceForZones) {
+    // Athlete has a specific goal — use it to calibrate limiar and series
+    // Limiar = target race pace + 10-15s (slightly slower than race pace for 10km)
+    // Series = target race pace - 20-30s (faster than race pace)
+    const tgt = targetPaceForZones;
+    zLimiarSec = r5(Math.min(zLimiarSec, tgt + 10));  // don't let limiar be slower than target+10
+    zSeriesSec = r5(Math.min(zSeriesSec, tgt - 20));   // series faster than target
+    zFacilSec  = r5(Math.max(zFacilSec, tgt + 50));    // easy much slower than target
+    zRecupSec  = r5(Math.max(zRecupSec, tgt + 70));    // recovery even slower
+    zLongoSec  = r5(Math.max(zLongoSec, tgt + 55));    // long run slower than easy
+  }
+
+  const zFacil  = fmtPace(zFacilSec, 1);
+  const zRecup  = fmtPace(zRecupSec, 1);
+  const zLimiar = fmtPace(zLimiarSec, 1);
+  const zSeries = fmtPace(zSeriesSec, 1);
+  const zLongo  = fmtPace(zLongoSec, 1);
+
+  // Last run type — avoid repeating same type
+  const lastRun = [...runs].sort((a,b) => new Date(b.date)-new Date(a.date))[0];
+  const lastType = lastRun ? classifyRun(lastRun).type : null;
   const exDate1    = next14[0]?.split('(')[0] || '2025-03-22';
   const exDate2    = next14[1]?.split('(')[0] || '2025-03-24';
   const exDate3    = next14[2]?.split('(')[0] || '2025-03-26';
@@ -4610,20 +4811,25 @@ OBJETIVO: ${objetivoStr} ${semanasTotaisEstimadas}
 DATAS DISPONÍVEIS — USA ESTAS DATAS EXATAS:
 ${next14.map((d,i) => (i<dias.length?'Semana 1':'Semana 2') + ': ' + d).join(', ')}
 
-RITMOS OBRIGATÓRIOS — COPIA ESTES VALORES EXATOS, NÃO INVENTES OUTROS:
-- Aquecimento e retorno: ${zRecup}/km
-- Corrida fácil/aeróbio: ${zFacil}/km
-- Corrida longa: ${zLongo}/km
-- Limiar (B2): ${zLimiar}/km
-- Séries/Intervalos (B1): ${zSeries}/km
+ZONAS DE RITMO (usa valores dentro destes intervalos, arredondados a 5s):
+- Recuperação / aquecimento / retorno: ${zRecup}/km ± 10s  (conversação fácil)
+- Aeróbio / fácil: ${zFacil}/km ± 10s  (consegue falar frases completas)
+- Corrida longa: ${zLongo}/km ± 10s  (SEMPRE mais lento que aeróbio, nunca mais rápido)
+- Limiar / threshold: ${zLimiar}/km ± 5s  (frases curtas, 20-40min sustentável)
+- Séries / intervalos: ${zSeries}/km ± 5s  (esforço máximo 400-1000m)
+
+ÚLTIMO TREINO DO ATLETA: ${lastType ? 'Tipo '+lastType+' ('+classifyRun(lastRun).subtype+')' : 'desconhecido'} — não repetir o mesmo tipo no primeiro treino.
 
 REGRAS:
-1. Usa APENAS os ritmos acima — nunca outros valores
-2. Semana 1 é adaptação/base — não é taper
-3. Taper só nas últimas 2 semanas antes da prova
-4. Sem 2 treinos duros consecutivos
-5. Longo sempre no último dia disponível
-6. Volume próximo de ${athlete.avgWeeklyKm.toFixed(0)}km/semana (actual)
+1. Longo é SEMPRE mais lento que aeróbio (não pode ser mais rápido)
+2. Aquecimento e retorno são SEMPRE mais lentos que o bloco principal
+3. Semana 1 = base/adaptação, nunca taper (taper só nas últimas 2 semanas antes da prova)
+4. Sem 2 treinos duros (B1/B2) consecutivos
+5. Corrida longa (C) no último dia disponível
+6. Volume próximo de ${athlete.avgWeeklyKm.toFixed(0)}km/semana
+7. Para B1: especifica número e distância das séries (ex: 6×400m) + ritmo de recuperação
+8. Inclui objetivo do treino na descrição (ex: "Desenvolver resistência ao ritmo de prova")
+9. Usa intervalos de ritmo nos segmentos quando fizer sentido (ex: "4:50-5:00/km")
 
 RESPONDE SÓ COM JSON VÁLIDO:
 {"titulo":"10km em 45min","subtitulo":"Prova: 20/06 · 3× semana","analise":"1-2 frases","semanas":[{"num":1,"resumo":"Base aeróbia","kmTotal":${Math.round(athlete.avgWeeklyKm)},"treinos":[{"dia":${exDow1},"diaNome":"${exDia1}","date":"${exDate1}","tipo":"A","nome":"Contínuo fácil","descricao":"Corrida aeróbia a ritmo confortável","distTotal":"6km","duracaoMin":36,"segmentos":[{"seg":"Aquecimento","dist":"1km","ritmo":"${zRecup}/km"},{"seg":"Contínuo","dist":"4km","ritmo":"${zFacil}/km"},{"seg":"Retorno","dist":"1km","ritmo":"${zRecup}/km"}]},{"dia":${exDow2},"diaNome":"${exDia2}","date":"${exDate2}","tipo":"B2","nome":"Treino de limiar","descricao":"Bloco a ritmo de limiar","distTotal":"7km","duracaoMin":38,"segmentos":[{"seg":"Aquecimento","dist":"1.5km","ritmo":"${zRecup}/km"},{"seg":"Limiar","dist":"4km","ritmo":"${zLimiar}/km"},{"seg":"Retorno","dist":"1.5km","ritmo":"${zRecup}/km"}]},{"dia":${exDow3},"diaNome":"${exDia3}","date":"${exDate3}","tipo":"C","nome":"Corrida longa","descricao":"Resistência aeróbia","distTotal":"9km","duracaoMin":54,"segmentos":[{"seg":"Aquecimento","dist":"1km","ritmo":"${zRecup}/km"},{"seg":"Longo","dist":"7.5km","ritmo":"${zLongo}/km"},{"seg":"Retorno","dist":"0.5km","ritmo":"${zRecup}/km"}]}]},{"num":2,"resumo":"Construção","kmTotal":${Math.round(athlete.avgWeeklyKm*1.05)},"treinos":[]}]}
