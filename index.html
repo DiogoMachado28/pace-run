@@ -986,7 +986,10 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
             <div style="font-family:var(--font-display);font-size:22px;font-weight:800" id="plano-titulo">—</div>
             <div style="font-size:12px;color:var(--muted);margin-top:2px" id="plano-subtitulo">—</div>
           </div>
-          <button onclick="resetarPlano()" style="font-size:11px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:8px;cursor:pointer;font-family:var(--font-display);font-weight:700;flex-shrink:0">Novo plano</button>
+          <div style="display:flex;gap:8px;flex-shrink:0">
+            <button onclick="renovarPlano()" style="font-size:11px;background:var(--accent);color:#0a0a0f;border:none;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:var(--font-display);font-weight:700">↻ Renovar</button>
+            <button onclick="resetarPlano()" style="font-size:11px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:8px;cursor:pointer;font-family:var(--font-display);font-weight:700">Novo</button>
+          </div>
         </div>
         <div class="tab-row" id="plano-tabs">
           <button class="tab-btn active" onclick="planoShowTab('semana',this)">Esta semana</button>
@@ -4313,13 +4316,8 @@ async function gerarPlano() {
   if (!dias.length) { showToast('Seleciona pelo menos 1 dia da semana.', 3000); return; }
 
   const dataProvaInput = document.getElementById('plano-data-prova').value;
-  let numSemanas = 8;
-  if (cfg.tipo !== 'pace-geral' && dataProvaInput) {
-    const hoje = new Date(); hoje.setHours(0,0,0,0);
-    const prova = new Date(dataProvaInput);
-    const diffDays = Math.ceil((prova - hoje) / 86400000);
-    if (diffDays > 0) numSemanas = Math.max(2, Math.min(24, Math.ceil(diffDays / 7)));
-  }
+  // AI generates 2 weeks at a time — shorter JSON, easier to adjust weekly
+  const numSemanas = 2;
 
   // Show loading state
   document.getElementById('plano-setup').style.display = 'none';
@@ -4359,14 +4357,19 @@ async function gerarPlanoComIA(athlete, cfg, dias, numSemanas, dataProvaInput) {
   })();
 
   let objetivoStr = 'Melhorar pace geral sem data definida';
+  let semanasTotaisEstimadas = '';
   if (cfg.tipo === 'prova-pace') {
     const m = parseInt(document.getElementById('plano-pace-min').value)||0;
     const s = parseInt(document.getElementById('plano-pace-sec').value)||0;
-    objetivoStr = `Correr ${cfg.dist}km a ${m}:${String(s).padStart(2,'0')}/km${dataProvaInput ? ' na prova de '+dataProvaInput : ''}`;
+    objetivoStr = `Correr ${cfg.dist}km a ${m}:${String(s).padStart(2,'0')}/km${dataProvaInput ? ' (prova: '+dataProvaInput+')' : ''}`;
   } else if (cfg.tipo === 'prova-tempo') {
     const h = parseInt(document.getElementById('plano-tempo-h').value)||0;
     const min = parseInt(document.getElementById('plano-tempo-min').value)||0;
-    objetivoStr = `Completar ${cfg.dist}km em ${h?h+'h':''}${min}min${dataProvaInput ? ' na prova de '+dataProvaInput : ''}`;
+    objetivoStr = `Completar ${cfg.dist}km em ${h?h+'h':''}${min}min${dataProvaInput ? ' (prova: '+dataProvaInput+')' : ''}`;
+  }
+  if (dataProvaInput && cfg.tipo !== 'pace-geral') {
+    const semsLeft = Math.ceil((new Date(dataProvaInput) - new Date()) / (7*86400000));
+    if (semsLeft > 0) semanasTotaisEstimadas = `(faltam ${semsLeft} semanas para a prova — este é um plano de 2 semanas, será renovado)`;
   }
 
   // Build last 12 runs detail for IA analysis (keep prompt short)
@@ -4383,23 +4386,21 @@ async function gerarPlanoComIA(athlete, cfg, dias, numSemanas, dataProvaInput) {
   const weeklyVols = athlete.weekVols || [];
   const weeklyStr = weeklyVols.map((v,i) => `semana-${i+1}: ${v.toFixed(1)}km`).join(', ');
 
-  const prompt = `És treinador de corrida. Gera plano de treino em JSON baseado nestes dados reais.
+  const prompt = `Treinador de corrida. Gera EXATAMENTE 2 semanas de treino em JSON.
 
-HISTÓRICO (últimas corridas):
+HISTÓRICO:
 ${recentRuns}
-Volume médio: ${athlete.avgWeeklyKm.toFixed(1)}km/sem | Ritmo médio: ${fmtPace(athlete.avgPaceSec,1)}/km | Melhor km: ${athlete.bestSplit ? fmtPace(athlete.bestSplit,1)+'/km' : 'N/A'} | Longa: ${athlete.longestRun.toFixed(1)}km
+Volume médio: ${athlete.avgWeeklyKm.toFixed(1)}km/sem | Ritmo: ${fmtPace(athlete.avgPaceSec,1)}/km | Melhor km: ${athlete.bestSplit ? fmtPace(athlete.bestSplit,1)+'/km' : 'N/A'} | Longa: ${athlete.longestRun.toFixed(1)}km
 
-OBJETIVO: ${objetivoStr}
-DIAS: ${diasNomes} (${dias.length}x/sem) | SEMANAS: ${numSemanas} | HOJE: ${hoje}
-SEMANA 1 COMEÇA: ${startMonday.toISOString().split('T')[0]}
-MAPEAMENTO DIAS: ${dias.map(d=>`${d}=${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d]}`).join(',')}
+OBJETIVO: ${objetivoStr} ${semanasTotaisEstimadas}
+DIAS: ${diasNomes} | SEMANA 1: ${startMonday.toISOString().split('T')[0]}
+DIAS MAP: ${dias.map(d=>`${d}=${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d]}`).join(',')}
 
-REGRAS: sem 2 duros consecutivos; longo(C) no último dia; taper últimas 2 semanas; ritmos baseados no histórico; se nunca fez séries começa por B2 antes de B1.
+REGRAS: max 2 treinos por semana; sem duros consecutivos; longo no último dia; ritmos do histórico real.
 
-JSON APENAS (sem markdown):
-{"titulo":"","subtitulo":"","analise":"2 frases sobre nível e estratégia","semanas":[{"num":1,"resumo":"","foco":"","kmTotal":0,"treinos":[{"dia":2,"diaNome":"Terça","date":"YYYY-MM-DD","tipo":"A","nome":"","descricao":"","distTotal":"7km","duracaoMin":40,"segmentos":[{"seg":"Aquecimento","dist":"1km","ritmo":"5:50/km"},{"seg":"Contínuo","dist":"5km","ritmo":"5:20/km"},{"seg":"Retorno","dist":"1km","ritmo":"5:50/km"}]}]}]}
-
-Tipos: A=Contínuo B1=Séries(Nx dist+recup) B2=Limiar C=Longo`;
+RESPONDE SÓ COM JSON:
+{"titulo":"","subtitulo":"","analise":"","semanas":[{"num":1,"resumo":"","kmTotal":0,"treinos":[{"dia":2,"diaNome":"Terça","date":"2025-03-18","tipo":"A","nome":"","descricao":"","distTotal":"6km","duracaoMin":35,"segmentos":[{"seg":"Aquecimento","dist":"1km","ritmo":"5:50/km"},{"seg":"Corrida","dist":"4km","ritmo":"5:30/km"},{"seg":"Retorno","dist":"1km","ritmo":"5:50/km"}]}]},{"num":2,"resumo":"","kmTotal":0,"treinos":[]}]}
+Tipos: A=Continuo B1=Series(ex:6x800m a 4:30 recup 400m a 6:30) B2=Limiar C=Longo`;
 
   const body = JSON.stringify({ prompt, user_id: currentUser.id });
   console.log('Sending to ai-plan:', { user_id: currentUser.id, promptLength: prompt.length, bodyLength: body.length });
@@ -4648,6 +4649,14 @@ function showPage_plano() {
     setupEl.style.display   = 'block';
     contentEl.style.display = 'none';
   }
+}
+
+function renovarPlano() {
+  // Keep config from existing plan and generate next 2 weeks
+  if (planoData?.config) {
+    planoConfig = { ...planoConfig, ...planoData.config };
+  }
+  gerarPlano();
 }
 
 function resetarPlano() {
