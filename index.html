@@ -889,46 +889,36 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
           </div>
         </div>
       </div>
+    </div>
 
     <!-- PLANO -->
-    <div id="page-plano" style="display:none;min-height:200px">
-
-      <!-- SETUP -->
+    <div class="page" id="page-plano">
       <div id="plano-setup">
         <div style="padding:16px 20px 8px">
           <div style="font-family:var(--font-display);font-size:24px;font-weight:800">Plano de treino</div>
           <div style="font-size:12px;color:var(--muted);margin-top:2px">Personalizado com base no teu histórico</div>
         </div>
-
         <div style="padding:0 20px 24px;display:flex;flex-direction:column;gap:14px">
-
-          <!-- Objetivo tipo -->
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px">
             <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Tipo de objetivo</div>
             <div style="display:flex;flex-direction:column;gap:8px">
               <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
-                <input type="radio" name="plano-tipo" value="prova-pace" checked onchange="planoTipoChange(this.value)"
-                  style="accent-color:var(--accent);width:16px;height:16px">
+                <input type="radio" name="plano-tipo" value="prova-pace" checked onchange="planoTipoChange(this.value)" style="accent-color:var(--accent);width:16px;height:16px">
                 <span style="font-size:13px">Prova com pace objetivo <span style="color:var(--muted);font-size:11px">(ex: 10km a 4:48/km)</span></span>
               </label>
               <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
-                <input type="radio" name="plano-tipo" value="prova-tempo" onchange="planoTipoChange(this.value)"
-                  style="accent-color:var(--accent);width:16px;height:16px">
+                <input type="radio" name="plano-tipo" value="prova-tempo" onchange="planoTipoChange(this.value)" style="accent-color:var(--accent);width:16px;height:16px">
                 <span style="font-size:13px">Prova com tempo objetivo <span style="color:var(--muted);font-size:11px">(ex: 10km em 48min)</span></span>
               </label>
               <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
-                <input type="radio" name="plano-tipo" value="pace-geral" onchange="planoTipoChange(this.value)"
-                  style="accent-color:var(--accent);width:16px;height:16px">
+                <input type="radio" name="plano-tipo" value="pace-geral" onchange="planoTipoChange(this.value)" style="accent-color:var(--accent);width:16px;height:16px">
                 <span style="font-size:13px">Melhorar pace geral <span style="color:var(--muted);font-size:11px">(sem data definida)</span></span>
               </label>
             </div>
           </div>
-
-          <!-- Objetivo detalhes -->
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px" id="plano-obj-detalhes">
-
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px">
             <div id="plano-dist-wrap">
-              <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Distância da prova</div>
+              <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Distância</div>
               <div style="display:flex;gap:8px;flex-wrap:wrap" id="plano-dist-chips">
                 <button class="filter-chip" onclick="planoSelectDist(5,this)">5km</button>
                 <button class="filter-chip active" onclick="planoSelectDist(10,this)">10km</button>
@@ -936,47 +926,36 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
                 <button class="filter-chip" onclick="planoSelectDist(42.2,this)">Maratona</button>
               </div>
             </div>
-
             <div id="plano-data-wrap">
               <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Data da prova</div>
-              <input type="date" id="plano-data-prova"
-                style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:14px;color:var(--text);width:100%;box-sizing:border-box;font-family:var(--font-mono)">
+              <input type="date" id="plano-data-prova" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:14px;color:var(--text);width:100%;box-sizing:border-box;font-family:var(--font-mono)">
             </div>
-
             <div id="plano-pace-wrap">
               <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Pace objetivo (min:ss /km)</div>
               <div style="display:flex;gap:8px;align-items:center">
-                <input type="number" id="plano-pace-min" min="3" max="9" placeholder="4" 
-                  style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:18px;color:var(--text);width:60px;text-align:center;font-family:var(--font-display);font-weight:800">
+                <input type="number" id="plano-pace-min" min="3" max="9" placeholder="4" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:18px;color:var(--text);width:60px;text-align:center;font-family:var(--font-display);font-weight:800">
                 <span style="color:var(--muted);font-size:20px">:</span>
-                <input type="number" id="plano-pace-sec" min="0" max="59" placeholder="48"
-                  style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:18px;color:var(--text);width:60px;text-align:center;font-family:var(--font-display);font-weight:800">
+                <input type="number" id="plano-pace-sec" min="0" max="59" placeholder="48" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:18px;color:var(--text);width:60px;text-align:center;font-family:var(--font-display);font-weight:800">
                 <span style="color:var(--muted);font-size:13px">/km</span>
               </div>
             </div>
-
             <div id="plano-tempo-wrap" style="display:none">
               <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Tempo objetivo</div>
               <div style="display:flex;gap:8px;align-items:center">
-                <input type="number" id="plano-tempo-h" min="0" max="6" placeholder="0"
-                  style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:18px;color:var(--text);width:60px;text-align:center;font-family:var(--font-display);font-weight:800">
+                <input type="number" id="plano-tempo-h" min="0" max="6" placeholder="0" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:18px;color:var(--text);width:60px;text-align:center;font-family:var(--font-display);font-weight:800">
                 <span style="color:var(--muted);font-size:20px">h</span>
-                <input type="number" id="plano-tempo-min" min="0" max="59" placeholder="48"
-                  style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:18px;color:var(--text);width:60px;text-align:center;font-family:var(--font-display);font-weight:800">
+                <input type="number" id="plano-tempo-min" min="0" max="59" placeholder="48" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:18px;color:var(--text);width:60px;text-align:center;font-family:var(--font-display);font-weight:800">
                 <span style="color:var(--muted);font-size:13px">min</span>
               </div>
             </div>
           </div>
-
-          <!-- Dias da semana -->
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px">
-            <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Modo de dias</div>
+            <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Dias por semana</div>
             <div style="display:flex;gap:8px;margin-bottom:12px">
               <button class="filter-chip active" id="btn-modo-num" onclick="planoModoDias('num')">Nº de dias</button>
               <button class="filter-chip" id="btn-modo-esp" onclick="planoModoDias('especificos')">Dias específicos</button>
             </div>
             <div id="plano-num-dias-wrap">
-              <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Dias por semana</div>
               <div style="display:flex;gap:8px" id="plano-num-chips">
                 <button class="filter-chip" onclick="planoSelectNumDias(2,this)">2×</button>
                 <button class="filter-chip active" onclick="planoSelectNumDias(3,this)">3×</button>
@@ -985,8 +964,7 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
               </div>
             </div>
             <div id="plano-esp-dias-wrap" style="display:none">
-              <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Seleciona os dias</div>
-              <div style="display:flex;gap:6px;flex-wrap:wrap" id="plano-dias-semana-chips">
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px" id="plano-dias-semana-chips">
                 <button class="filter-chip" onclick="planoToggleDia(1,this)">Seg</button>
                 <button class="filter-chip" onclick="planoToggleDia(2,this)">Ter</button>
                 <button class="filter-chip" onclick="planoToggleDia(3,this)">Qua</button>
@@ -997,44 +975,29 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
               </div>
             </div>
           </div>
-
-          <!-- Gerar -->
-          <button onclick="gerarPlano()"
-            style="background:var(--accent);color:#0a0a0f;border:none;border-radius:12px;padding:14px;font-family:var(--font-display);font-size:15px;font-weight:800;cursor:pointer;letter-spacing:0.5px">
+          <button onclick="gerarPlano()" style="background:var(--accent);color:#0a0a0f;border:none;border-radius:12px;padding:14px;font-family:var(--font-display);font-size:15px;font-weight:800;cursor:pointer;letter-spacing:0.5px">
             Gerar plano personalizado
           </button>
         </div>
       </div>
-
-      <!-- PLANO ATIVO -->
       <div id="plano-content" style="display:none">
         <div style="padding:16px 20px 12px;display:flex;align-items:flex-start;justify-content:space-between">
           <div>
             <div style="font-family:var(--font-display);font-size:22px;font-weight:800" id="plano-titulo">—</div>
             <div style="font-size:12px;color:var(--muted);margin-top:2px" id="plano-subtitulo">—</div>
           </div>
-          <button onclick="resetarPlano()"
-            style="font-size:11px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:8px;cursor:pointer;font-family:var(--font-display);font-weight:700;flex-shrink:0">
-            Novo plano
-          </button>
+          <button onclick="resetarPlano()" style="font-size:11px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:8px;cursor:pointer;font-family:var(--font-display);font-weight:700;flex-shrink:0">Novo plano</button>
         </div>
-
-        <!-- Tabs: semana atual / plano completo -->
         <div class="tab-row" id="plano-tabs">
           <button class="tab-btn active" onclick="planoShowTab('semana',this)">Esta semana</button>
           <button class="tab-btn" onclick="planoShowTab('completo',this)">Plano completo</button>
         </div>
-
-        <!-- Esta semana -->
         <div id="plano-tab-semana" style="padding:16px 20px 24px;display:flex;flex-direction:column;gap:10px"></div>
-
-        <!-- Plano completo -->
         <div id="plano-tab-completo" style="display:none;padding:16px 20px 24px;flex-direction:column;gap:10px"></div>
-      </div><!-- /plano-content -->
-    </div><!-- /page-plano -->
-  </div><!-- /last-page-wrapper -->
-  </div><!-- /content -->
+      </div>
+    </div>
 
+  </div>
   <nav>
     <button class="nav-btn active" onclick="showPage('dashboard',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
@@ -1628,17 +1591,9 @@ async function load() {
 //  NAVIGATION
 // ══════════════════════════════════════════
 function showPage(id, btn) {
-  // Handle regular .page elements
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  // Hide plano page (not in .page system)
-  document.getElementById('page-plano').style.display = 'none';
-
-  if (id === 'plano') {
-    document.getElementById('page-plano').style.display = 'block';
-  } else {
-    document.getElementById('page-' + id)?.classList.add('active');
-  }
+  document.getElementById('page-' + id)?.classList.add('active');
   if (btn) btn.classList.add('active');
   if (id === 'map') initMap();
   if (id === 'analysis') renderAnalysis();
