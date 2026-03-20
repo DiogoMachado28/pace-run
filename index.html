@@ -4303,30 +4303,163 @@ function assignWorkoutTypes(days, weekNum, totalWeeks) {
 }
 
 // ── Generate full plan ──
-function gerarPlano() {
+async function gerarPlano() {
   const athlete = analisarCorredor();
   if (!athlete) { showToast('Sem corridas suficientes para gerar um plano.', 4000); return; }
 
   const cfg = planoConfig;
-
-  // Validate days
   const dias = distribuirDias(cfg.numDias, cfg.diasEspecificos, cfg.modoDias);
   if (!dias.length) { showToast('Seleciona pelo menos 1 dia da semana.', 3000); return; }
 
-  // Determine number of weeks
+  const dataProvaInput = document.getElementById('plano-data-prova').value;
   let numSemanas = 8;
-  if (cfg.tipo !== 'pace-geral' && cfg.dataProva) {
+  if (cfg.tipo !== 'pace-geral' && dataProvaInput) {
     const hoje = new Date(); hoje.setHours(0,0,0,0);
-    const prova = new Date(document.getElementById('plano-data-prova').value);
+    const prova = new Date(dataProvaInput);
     const diffDays = Math.ceil((prova - hoje) / 86400000);
-    numSemanas = Math.max(2, Math.min(24, Math.ceil(diffDays / 7)));
+    if (diffDays > 0) numSemanas = Math.max(2, Math.min(24, Math.ceil(diffDays / 7)));
   }
 
+  // Show loading state
+  document.getElementById('plano-setup').style.display = 'none';
+  document.getElementById('plano-content').style.display = 'none';
+  // Reuse the page area to show a loading message
+  const pageEl = document.getElementById('page-plano');
+  const loadingDiv = document.createElement('div');
+  loadingDiv.id = 'plano-loading-msg';
+  loadingDiv.style.cssText = 'padding:60px 20px;text-align:center';
+  loadingDiv.innerHTML = '<div style="font-size:32px;margin-bottom:16px">✦</div><div style="font-family:var(--font-display);font-size:16px;font-weight:700;color:var(--accent)">A gerar o teu plano...</div><div style="font-size:12px;color:var(--muted);margin-top:8px">A analisar o teu histórico com IA</div>';
+  pageEl.appendChild(loadingDiv);
+
+  try {
+    const plano = await gerarPlanoComIA(athlete, cfg, dias, numSemanas, dataProvaInput);
+    planoData = plano;
+    savePlano();
+    renderPlanoContent();
+  } catch(e) {
+    console.warn('IA falhou, usando algoritmo:', e.message);
+    showToast('IA indisponível — a usar plano automático', 3000);
+    gerarPlanoAlgoritmo(athlete, cfg, dias, numSemanas, dataProvaInput);
+  } finally {
+    loadingDiv.remove();
+  }
+}
+
+async function gerarPlanoComIA(athlete, cfg, dias, numSemanas, dataProvaInput) {
+  const session = await supa.auth.getSession();
+  const token = session.data.session?.access_token;
+  if (!token) throw new Error('Sem sessão');
+
+  const hoje = new Date().toISOString().split('T')[0];
+  const diasNomes = dias.map(d => ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d]).join(', ');
+  const startMonday = (() => {
+    const now = new Date(); now.setHours(0,0,0,0);
+    const dow = (now.getDay()+6)%7;
+    const m = new Date(now); m.setDate(now.getDate()-dow);
+    return m;
+  })();
+
+  let objetivoStr = 'Melhorar pace geral sem data definida';
+  if (cfg.tipo === 'prova-pace') {
+    const m = parseInt(document.getElementById('plano-pace-min').value)||0;
+    const s = parseInt(document.getElementById('plano-pace-sec').value)||0;
+    objetivoStr = `Correr ${cfg.dist}km a ${m}:${String(s).padStart(2,'0')}/km${dataProvaInput ? ' na prova de '+dataProvaInput : ''}`;
+  } else if (cfg.tipo === 'prova-tempo') {
+    const h = parseInt(document.getElementById('plano-tempo-h').value)||0;
+    const min = parseInt(document.getElementById('plano-tempo-min').value)||0;
+    objetivoStr = `Completar ${cfg.dist}km em ${h?h+'h':''}${min}min${dataProvaInput ? ' na prova de '+dataProvaInput : ''}`;
+  }
+
+  const prompt = `És um treinador de corrida experiente. Gera um plano de treino personalizado em JSON.
+
+DADOS DO ATLETA:
+- Corridas totais: ${runs.length}
+- Volume médio semanal (últimas 8 semanas): ${athlete.avgWeeklyKm.toFixed(1)}km
+- Ritmo médio recente: ${fmtPace(athlete.avgPaceSec, 1)}/km
+- Melhor km: ${athlete.bestSplit ? fmtPace(athlete.bestSplit, 1)+'/km' : 'desconhecido'}
+- Corrida mais longa recente: ${athlete.longestRun.toFixed(1)}km
+- Tendência: ${athlete.trend > 5 ? 'a melhorar' : athlete.trend < -5 ? 'a piorar' : 'estável'}
+
+OBJETIVO: ${objetivoStr}
+DIAS DE TREINO: ${diasNomes} (${dias.length} dias/semana)
+SEMANAS: ${numSemanas}
+DATA DE HOJE: ${hoje}
+
+REGRAS:
+- Nunca colocar 2 treinos duros (B1/B2) consecutivos
+- Longo (C) sempre no fim de semana (sáb ou dom)
+- Progressão gradual de volume, taper nas últimas 2 semanas
+- Ritmos baseados no histórico real do atleta
+- Para cada treino, especifica segmentos detalhados com distância e pace
+
+Responde APENAS com JSON válido (sem markdown, sem texto extra):
+{
+  "titulo": "string",
+  "subtitulo": "string",
+  "semanas": [
+    {
+      "num": 1,
+      "resumo": "Adaptação",
+      "foco": "Aeróbio base",
+      "kmTotal": 18.5,
+      "treinos": [
+        {
+          "dia": 2,
+          "diaNome": "Terça",
+          "date": "YYYY-MM-DD",
+          "tipo": "A",
+          "nome": "Contínuo leve",
+          "descricao": "Corrida contínua a ritmo confortável",
+          "distTotal": "7km",
+          "duracaoMin": 40,
+          "segmentos": [
+            {"seg": "Aquecimento", "dist": "1km", "ritmo": "5:50/km"},
+            {"seg": "Contínuo", "dist": "5km", "ritmo": "5:30/km"},
+            {"seg": "Retorno", "dist": "1km", "ritmo": "6:00/km"}
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Tipos: A=Contínuo, B1=Séries/Intervalos (especifica Nx distância + recuperação), B2=Limiar, C=Longo.
+Datas: semana 1 começa em ${startMonday.toISOString().split('T')[0]}.
+Os dias são: ${dias.map(d => `${d}=${ ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d]}`).join(', ')}.`;
+
+  const res = await fetch('https://urtvucvjkfffwhkdfclp.supabase.co/functions/v1/ai-plan', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ prompt }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json();
+    if (err.error === 'limit_reached') throw new Error(err.message);
+    throw new Error('Edge function error: ' + (err.error || res.status));
+  }
+
+  const data = await res.json();
+  const text = data.text || '';
+  const clean = text.replace(/```json|```/g, '').trim();
+  const plano = JSON.parse(clean);
+
+  return {
+    ...plano,
+    geradoEm: new Date().toISOString(),
+    config: { ...cfg, dias },
+    geradoPorIA: true,
+  };
+}
+
+function gerarPlanoAlgoritmo(athlete, cfg, dias, numSemanas, dataProvaInput) {
   const easyPace = getTargetPace(athlete);
   const zones    = calcZones(easyPace);
   const baseDist = Math.max(athlete.avgWeeklyKm / Math.max(dias.length, 1), 4);
 
-  // Build title
   let titulo = 'Melhorar pace geral';
   let subtitulo = `${dias.length}× por semana · ${numSemanas} semanas`;
   if (cfg.tipo === 'prova-pace') {
@@ -4338,42 +4471,28 @@ function gerarPlano() {
     const min = parseInt(document.getElementById('plano-tempo-min').value)||0;
     titulo = `${cfg.dist}km em ${h ? h+'h' : ''}${min}min`;
   }
-  if (cfg.dataProva && cfg.tipo !== 'pace-geral') {
-    const d = new Date(document.getElementById('plano-data-prova').value);
+  if (dataProvaInput && cfg.tipo !== 'pace-geral') {
+    const d = new Date(dataProvaInput);
     subtitulo = `Prova: ${d.toLocaleDateString('pt-PT',{day:'2-digit',month:'short'})} · ${dias.length}× semana`;
   }
 
-  // Build weeks
   const semanas = [];
-  // Find the Monday of the current week as start
-  const hoje = new Date(); hoje.setHours(0,0,0,0);
-  const dow = (hoje.getDay()+6)%7;
-  const startMonday = new Date(hoje); startMonday.setDate(hoje.getDate()-dow);
+  const hoje2 = new Date(); hoje2.setHours(0,0,0,0);
+  const dow2 = (hoje2.getDay()+6)%7;
+  const startMonday = new Date(hoje2); startMonday.setDate(hoje2.getDate()-dow2);
 
   for (let w = 0; w < numSemanas; w++) {
     const types = assignWorkoutTypes(dias, w+1, numSemanas);
     const treinos = dias.map((dia, i) => {
       const workout = buildWorkout(types[i], zones, w+1, numSemanas, baseDist);
-      // Calculate actual date for this training day
       const wMonday = new Date(startMonday); wMonday.setDate(startMonday.getDate() + w*7);
-      // dia: 0=sun,1=mon,...,6=sat → offset from monday
       const offset = dia === 0 ? 6 : dia - 1;
       const date = new Date(wMonday); date.setDate(wMonday.getDate() + offset);
-      return {
-        ...workout,
-        dia,
-        diaNome: DIAS_FULL[dia],
-        date: date.toISOString().split('T')[0],
-      };
+      return { ...workout, dia, diaNome: DIAS_FULL[dia], date: date.toISOString().split('T')[0] };
     });
-
-    const kmTotal = treinos.reduce((s,t) => {
-      const d = parseFloat(t.distTotal) || 0; return s+d;
-    }, 0);
-
+    const kmTotal = treinos.reduce((s,t) => s + (parseFloat(t.distTotal)||0), 0);
     const isTaper = w >= numSemanas - 2;
-    const resumos = ['Adaptação','Base aeróbia','Construção','Construção+','Desenvolvimento',
-                     'Intensificação','Pico de forma','Taper','Redução final'];
+    const resumos = ['Adaptação','Base aeróbia','Construção','Construção+','Desenvolvimento','Intensificação','Pico de forma','Taper','Redução final'];
     semanas.push({
       num: w+1,
       resumo: isTaper ? (w===numSemanas-1?'Redução final':'Taper') : resumos[Math.min(w, resumos.length-3)],
@@ -4382,14 +4501,7 @@ function gerarPlano() {
     });
   }
 
-  planoData = {
-    titulo, subtitulo,
-    geradoEm: new Date().toISOString(),
-    config: { ...cfg, dias },
-    zones,
-    semanas,
-  };
-
+  planoData = { titulo, subtitulo, geradoEm: new Date().toISOString(), config: { ...cfg, dias }, zones, semanas };
   savePlano();
   renderPlanoContent();
 }
