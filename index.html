@@ -4338,7 +4338,7 @@ async function gerarPlano() {
     renderPlanoContent();
   } catch(e) {
     console.warn('IA falhou, usando algoritmo:', e.message);
-    showToast('IA indisponível — a usar plano automático', 3000);
+    showToast('IA indisponível (' + e.message + ') — a usar plano automático', 8000);
     gerarPlanoAlgoritmo(athlete, cfg, dias, numSemanas, dataProvaInput);
   } finally {
     loadingDiv.remove();
