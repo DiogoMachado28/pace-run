@@ -4590,9 +4590,9 @@ Total corridas: ${athlete.totalRuns}${athlete.totalRuns < 5 ? ' (POUCOS DADOS �
   const exDate1    = next14[0]?.split('(')[0] || '2025-03-22';
   const exDate2    = next14[1]?.split('(')[0] || '2025-03-24';
   const exDate3    = next14[2]?.split('(')[0] || '2025-03-26';
-  const exDia1     = next14[0]?.match(/\(([^)]+)\)/)?.[1] || 'Sáb';
-  const exDia2     = next14[1]?.match(/\(([^)]+)\)/)?.[1] || 'Ter';
-  const exDia3     = next14[2]?.match(/\(([^)]+)\)/)?.[1] || 'Qui';
+  const exDia1     = next14[0] ? next14[0].split('(')[1]?.replace(')','') || 'Sáb' : 'Sáb';
+  const exDia2     = next14[1] ? next14[1].split('(')[1]?.replace(')','') || 'Ter' : 'Ter';
+  const exDia3     = next14[2] ? next14[2].split('(')[1]?.replace(')','') || 'Qui' : 'Qui';
   const exDow1     = dias[0] ?? 6;
   const exDow2     = dias[1] ?? 2;
   const exDow3     = dias[2] ?? 4;
@@ -4608,8 +4608,7 @@ ${trainingHistory}
 OBJETIVO: ${objetivoStr} ${semanasTotaisEstimadas}
 
 DATAS DISPONÍVEIS — USA ESTAS DATAS EXATAS:
-${next14.map((d,i) => `${i<dias.length?'Semana 1':'Semana 2'}: ${d}`).join('
-')}
+${next14.map((d,i) => (i<dias.length?'Semana 1':'Semana 2') + ': ' + d).join(', ')}
 
 RITMOS OBRIGATÓRIOS — COPIA ESTES VALORES EXATOS, NÃO INVENTES OUTROS:
 - Aquecimento e retorno: ${zRecup}/km
