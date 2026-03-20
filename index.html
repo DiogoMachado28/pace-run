@@ -4370,37 +4370,71 @@ async function gerarPlanoComIA(athlete, cfg, dias, numSemanas, dataProvaInput) {
     objetivoStr = `Completar ${cfg.dist}km em ${h?h+'h':''}${min}min${dataProvaInput ? ' na prova de '+dataProvaInput : ''}`;
   }
 
-  const prompt = `És um treinador de corrida experiente. Gera um plano de treino personalizado em JSON.
+  // Build last 20 runs detail for IA analysis
+  const recentRuns = [...runs]
+    .sort((a,b) => new Date(b.date)-new Date(a.date))
+    .slice(0, 20)
+    .map(r => {
+      const splits = gpxSplits[r.id];
+      const splitStr = splits ? splits.slice(0,5).map((s,i) => `km${i+1}:${fmtPace(s,1)}`).join(' ') : '';
+      return `${r.date.slice(0,10)} | ${r.dist.toFixed(1)}km | ${fmtPace(r.secs,r.dist)}/km avg${splitStr ? ' | splits: '+splitStr : ''}${r.bestSplit ? ' | best km: '+fmtPace(r.bestSplit,1) : ''}`;
+    }).join('\n');
 
-DADOS DO ATLETA:
-- Corridas totais: ${runs.length}
-- Volume médio semanal (últimas 8 semanas): ${athlete.avgWeeklyKm.toFixed(1)}km
-- Ritmo médio recente: ${fmtPace(athlete.avgPaceSec, 1)}/km
-- Melhor km: ${athlete.bestSplit ? fmtPace(athlete.bestSplit, 1)+'/km' : 'desconhecido'}
-- Corrida mais longa recente: ${athlete.longestRun.toFixed(1)}km
-- Tendência: ${athlete.trend > 5 ? 'a melhorar' : athlete.trend < -5 ? 'a piorar' : 'estável'}
+  // Weekly volumes last 8 weeks
+  const weeklyVols = athlete.weekVols || [];
+  const weeklyStr = weeklyVols.map((v,i) => `semana-${i+1}: ${v.toFixed(1)}km`).join(', ');
 
-OBJETIVO: ${objetivoStr}
-DIAS DE TREINO: ${diasNomes} (${dias.length} dias/semana)
-SEMANAS: ${numSemanas}
-DATA DE HOJE: ${hoje}
+  const prompt = `És um treinador de corrida de elite. Analisa detalhadamente o histórico do atleta e gera um plano de treino personalizado.
 
-REGRAS:
-- Nunca colocar 2 treinos duros (B1/B2) consecutivos
-- Longo (C) sempre no fim de semana (sáb ou dom)
-- Progressão gradual de volume, taper nas últimas 2 semanas
-- Ritmos baseados no histórico real do atleta
-- Para cada treino, especifica segmentos detalhados com distância e pace
+═══ ANÁLISE DO HISTÓRICO ═══
 
-Responde APENAS com JSON válido (sem markdown, sem texto extra):
+Últimas ${Math.min(20, runs.length)} corridas (mais recente primeiro):
+${recentRuns}
+
+Volume semanal (últimas semanas, da mais recente): ${weeklyStr || 'sem dados'}
+Volume médio semanal: ${athlete.avgWeeklyKm.toFixed(1)}km
+Ritmo médio recente: ${fmtPace(athlete.avgPaceSec, 1)}/km
+Melhor km registado: ${athlete.bestSplit ? fmtPace(athlete.bestSplit, 1)+'/km' : 'sem dados GPS'}
+Corrida mais longa recente: ${athlete.longestRun.toFixed(1)}km
+Tendência de ritmo: ${athlete.trend > 8 ? '▼ a melhorar claramente' : athlete.trend > 3 ? '▼ ligeira melhoria' : athlete.trend < -8 ? '▲ a piorar claramente' : athlete.trend < -3 ? '▲ ligeira regressão' : '→ estável'}
+
+Com base nestes dados, identifica:
+- O nível atual do atleta (iniciante/intermédio/avançado)
+- Se tem base aeróbia suficiente para o objetivo
+- Que tipo de treinos tem feito (só contínuos? já faz séries?)
+- Pontos fortes e limitações
+
+═══ OBJETIVO ═══
+${objetivoStr}
+
+═══ CONFIGURAÇÃO DO PLANO ═══
+Dias de treino disponíveis: ${diasNomes} (${dias.length} dias/semana)
+Número de semanas: ${numSemanas}
+Data de hoje: ${hoje}
+Semana 1 começa: ${startMonday.toISOString().split('T')[0]}
+Dias (número→nome): ${dias.map(d => `${d}=${ ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d]}`).join(', ')}
+
+═══ REGRAS OBRIGATÓRIAS ═══
+1. Nunca dois treinos duros (B1/B2) em dias consecutivos
+2. Corrida longa (C) sempre no último dia disponível da semana
+3. Se o atleta nunca fez séries, começar só com B2 (limiar) antes de introduzir B1
+4. Volume semanal começa próximo do volume atual e cresce max 10% por semana
+5. Taper nas últimas 2 semanas (redução de 20-30% de volume)
+6. Ritmos DEVEM ser baseados no histórico real — não usar valores genéricos
+7. Para B1: especifica número exato de séries, distância e ritmo de cada série, e ritmo de recuperação
+8. Todas as datas devem ser corretas (dia da semana certo para cada treino)
+
+═══ FORMATO DE RESPOSTA ═══
+Responde APENAS com JSON válido, sem markdown, sem explicações fora do JSON:
 {
-  "titulo": "string",
-  "subtitulo": "string",
+  "titulo": "string descritivo",
+  "subtitulo": "string com detalhes",
+  "analise": "2-3 frases sobre o nível do atleta e estratégia do plano",
   "semanas": [
     {
       "num": 1,
       "resumo": "Adaptação",
-      "foco": "Aeróbio base",
+      "foco": "string",
       "kmTotal": 18.5,
       "treinos": [
         {
@@ -4408,14 +4442,14 @@ Responde APENAS com JSON válido (sem markdown, sem texto extra):
           "diaNome": "Terça",
           "date": "YYYY-MM-DD",
           "tipo": "A",
-          "nome": "Contínuo leve",
-          "descricao": "Corrida contínua a ritmo confortável",
+          "nome": "string",
+          "descricao": "string explicativo com contexto do treino",
           "distTotal": "7km",
           "duracaoMin": 40,
           "segmentos": [
             {"seg": "Aquecimento", "dist": "1km", "ritmo": "5:50/km"},
-            {"seg": "Contínuo", "dist": "5km", "ritmo": "5:30/km"},
-            {"seg": "Retorno", "dist": "1km", "ritmo": "6:00/km"}
+            {"seg": "Contínuo", "dist": "5km", "ritmo": "5:20/km"},
+            {"seg": "Retorno", "dist": "1km", "ritmo": "5:50/km"}
           ]
         }
       ]
@@ -4423,9 +4457,11 @@ Responde APENAS com JSON válido (sem markdown, sem texto extra):
   ]
 }
 
-Tipos: A=Contínuo, B1=Séries/Intervalos (especifica Nx distância + recuperação), B2=Limiar, C=Longo.
-Datas: semana 1 começa em ${startMonday.toISOString().split('T')[0]}.
-Os dias são: ${dias.map(d => `${d}=${ ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d]}`).join(', ')}.`;
+Tipos de treino:
+- A = Contínuo (aeróbio, ritmo confortável ou de prova)
+- B1 = Séries/Intervalos (ex: "6× 800m a 4:30/km, recuperação 400m a 6:30/km")
+- B2 = Limiar (20-35min a ritmo de limiar, ~85% esforço máximo)
+- C = Longo (resistência, ritmo fácil, distância progressiva)`;
 
   const res = await fetch('https://urtvucvjkfffwhkdfclp.supabase.co/functions/v1/ai-plan', {
     method: 'POST',
@@ -4577,6 +4613,20 @@ function renderPlanoContent() {
   document.getElementById('plano-content').style.display = 'block';
   document.getElementById('plano-titulo').textContent    = planoData.titulo;
   document.getElementById('plano-subtitulo').textContent = planoData.subtitulo;
+  // Show AI analysis if available
+  let analiseEl = document.getElementById('plano-analise');
+  if (!analiseEl) {
+    analiseEl = document.createElement('div');
+    analiseEl.id = 'plano-analise';
+    analiseEl.style.cssText = 'margin:0 20px 12px;padding:12px 14px;background:rgba(232,255,71,.06);border:1px solid rgba(232,255,71,.15);border-radius:10px;font-size:12px;color:var(--muted);line-height:1.6';
+    document.getElementById('plano-tabs').insertAdjacentElement('beforebegin', analiseEl);
+  }
+  if (planoData.analise) {
+    analiseEl.style.display = '';
+    analiseEl.innerHTML = `<span style="color:var(--accent);font-weight:700">✦ IA: </span>${planoData.analise}`;
+  } else {
+    analiseEl.style.display = 'none';
+  }
 
   const semIdx = getCurrentPlanWeek();
 
