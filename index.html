@@ -4090,6 +4090,9 @@ function analisarCorredor() {
   const sorted = [...runs].sort((a,b) => new Date(a.date)-new Date(b.date));
   const recent = sorted.slice(-20);
 
+  // Minimum data check
+  const hasEnoughData = runs.length >= 3;
+
   // Average weekly volume (last 8 weeks)
   const now = new Date();
   let weekVols = [];
@@ -4107,7 +4110,7 @@ function analisarCorredor() {
 
   // Best split as proxy for threshold/speed
   const bestSplits = runs.filter(r=>r.bestSplit).map(r=>r.bestSplit);
-  const bestSplit  = bestSplits.length ? Math.min(...bestSplits) : avgPaceSec * 0.85;
+  const bestSplit  = bestSplits.length ? Math.min(...bestSplits) : null;
 
   // Long run capability (longest recent run)
   const longestRun = Math.max(...recent.map(r=>r.dist), 0);
@@ -4121,7 +4124,68 @@ function analisarCorredor() {
     trend = older - newer; // positive = improving
   }
 
-  return { avgWeeklyKm, avgPaceSec, bestSplit, longestRun, trend, recentPaces, weekVols };
+  // ── Zone analysis from GPS splits ──
+  // Collect ALL km splits across all runs and bucket by pace
+  const allSplitSecs = [];
+  Object.values(gpxSplits).forEach(splits => splits.forEach(s => {
+    if (s > 120 && s < 900) allSplitSecs.push(s); // 2-15 min/km sanity filter
+  }));
+
+  let zones = null;
+  if (allSplitSecs.length >= 10) {
+    allSplitSecs.sort((a,b) => a-b);
+    // Percentile-based zone detection
+    const p = (pct) => allSplitSecs[Math.floor(allSplitSecs.length * pct)];
+    const fastestKm  = allSplitSecs[0];
+    const p10        = p(0.10); // top 10% = likely intervals/series
+    const p25        = p(0.25); // top 25% = threshold/limiar zone
+    const p50        = p(0.50); // median = typical training pace
+    const p75        = p(0.75); // easy/aerobic zone
+    const slowestKm  = allSplitSecs[allSplitSecs.length - 1];
+
+    // Classify each split into zones
+    const boundary_interval  = (p10 + p25) / 2;
+    const boundary_threshold = (p25 + p50) / 2;
+    const boundary_easy      = (p50 + p75) / 2;
+
+    zones = {
+      // Derived zone boundaries (secs/km)
+      intervalBoundary:  Math.round(boundary_interval),
+      thresholdBoundary: Math.round(boundary_threshold),
+      easyBoundary:      Math.round(boundary_easy),
+      // Representative paces for each zone
+      intervalPace:  Math.round(p10),   // typical series pace
+      thresholdPace: Math.round(p25),   // typical limiar pace
+      easyPace:      Math.round(p50),   // typical fácil pace
+      recoverPace:   Math.round(p75),   // very easy/recovery
+      fastestKm,
+      slowestKm,
+      totalSplits: allSplitSecs.length,
+      // Zone distribution (% of km in each zone)
+      pctInterval:  Math.round(allSplitSecs.filter(s=>s<=boundary_interval).length/allSplitSecs.length*100),
+      pctThreshold: Math.round(allSplitSecs.filter(s=>s>boundary_interval&&s<=boundary_threshold).length/allSplitSecs.length*100),
+      pctEasy:      Math.round(allSplitSecs.filter(s=>s>boundary_threshold&&s<=boundary_easy).length/allSplitSecs.length*100),
+      pctRecover:   Math.round(allSplitSecs.filter(s=>s>boundary_easy).length/allSplitSecs.length*100),
+    };
+  }
+
+  // ── Training type history from classification ──
+  const recentClassified = recent.slice(-12).map(r => ({
+    ...classifyRun(r),
+    dist: r.dist,
+    date: r.date,
+  }));
+  const typeCounts = { A: 0, B1: 0, B2: 0, C: 0 };
+  recentClassified.forEach(c => { typeCounts[c.type] = (typeCounts[c.type]||0) + 1; });
+  const hasSeriesHistory = typeCounts.B1 > 0;
+  const hasThresholdHistory = typeCounts.B2 > 0;
+
+  return {
+    avgWeeklyKm, avgPaceSec, bestSplit, longestRun, trend,
+    recentPaces, weekVols, zones, typeCounts,
+    hasSeriesHistory, hasThresholdHistory, hasEnoughData,
+    totalRuns: runs.length,
+  };
 }
 
 // ── Pace zones from easy pace ──
@@ -4403,7 +4467,21 @@ function aplicarConfigIA(interp) {
 
 async function gerarPlano() {
   const athlete = analisarCorredor();
-  if (!athlete) { showToast('Sem corridas suficientes para gerar um plano.', 4000); return; }
+  if (!athlete) {
+    // No runs at all
+    const chat = document.getElementById('plano-chat');
+    if (chat) chat.innerHTML += `<div style="display:flex;gap:10px;align-items:flex-start">
+      <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px">✦</div>
+      <div style="background:rgba(255,107,53,.12);border:1px solid rgba(255,107,53,.3);border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.6">
+        Ainda não tens corridas registadas. Importa os teus dados do Strava ou GPX primeiro para eu poder analisar o teu nível actual e criar um plano realista.
+      </div>
+    </div>`;
+    showToast('Importa pelo menos 1 corrida antes de gerar um plano.', 5000);
+    return;
+  }
+  if (!athlete.hasEnoughData) {
+    showToast(`Tens apenas ${athlete.totalRuns} corrida${athlete.totalRuns===1?'':'s'} — o plano será estimado com dados limitados.`, 4000);
+  }
 
   const cfg = planoConfig;
   const dias = distribuirDias(cfg.numDias, cfg.diasEspecificos, cfg.modoDias);
@@ -4487,11 +4565,29 @@ async function gerarPlanoComIA(athlete, cfg, dias, numSemanas, dataProvaInput) {
   const weeklyVols = athlete.weekVols || [];
   const weeklyStr = weeklyVols.map((v,i) => `semana-${i+1}: ${v.toFixed(1)}km`).join(', ');
 
+  // Build zone summary from GPS data if available
+  const zoneStr = athlete.zones ? `
+ZONAS REAIS (calculadas de ${athlete.zones.totalSplits} km registados em GPS):
+- Intervalos/Séries (${athlete.zones.pctInterval}% dos km): ${fmtPace(athlete.zones.intervalPace,1)}/km
+- Limiar/Threshold (${athlete.zones.pctThreshold}% dos km): ${fmtPace(athlete.zones.thresholdPace,1)}/km
+- Aeróbio fácil (${athlete.zones.pctEasy}% dos km): ${fmtPace(athlete.zones.easyPace,1)}/km
+- Recuperação (${athlete.zones.pctRecover}% dos km): ${fmtPace(athlete.zones.recoverPace,1)}/km
+- Melhor km alguma vez: ${fmtPace(athlete.zones.fastestKm,1)}/km
+USA ESTES RITMOS REAIS nos treinos — não uses valores genéricos.` : `
+SEM DADOS GPS SUFICIENTES — estima zonas a partir do ritmo médio de ${fmtPace(athlete.avgPaceSec,1)}/km.`;
+
+  const trainingHistory = `Histórico de tipos (últimas 12 corridas): A(contínuo)=${athlete.typeCounts.A} B1(séries)=${athlete.typeCounts.B1} B2(limiar)=${athlete.typeCounts.B2} C(longo)=${athlete.typeCounts.C}
+${!athlete.hasSeriesHistory ? 'NUNCA FEZ SÉRIES B1 — não incluir B1 nas primeiras 2 semanas.' : 'Já tem experiência com séries.'}
+${!athlete.hasThresholdHistory ? 'Pouca experiência com treinos de limiar.' : 'Tem experiência com treinos de limiar.'}
+Total corridas: ${athlete.totalRuns}${athlete.totalRuns < 5 ? ' (POUCOS DADOS — ser conservador no volume e intensidade)' : ''}`;
+
   const prompt = `Treinador de corrida. Gera EXATAMENTE 2 semanas de treino em JSON.
 
 HISTÓRICO:
 ${recentRuns}
-Volume médio: ${athlete.avgWeeklyKm.toFixed(1)}km/sem | Ritmo: ${fmtPace(athlete.avgPaceSec,1)}/km | Melhor km: ${athlete.bestSplit ? fmtPace(athlete.bestSplit,1)+'/km' : 'N/A'} | Longa: ${athlete.longestRun.toFixed(1)}km
+Volume médio: ${athlete.avgWeeklyKm.toFixed(1)}km/sem | Ritmo médio: ${fmtPace(athlete.avgPaceSec,1)}/km | Melhor km: ${athlete.bestSplit ? fmtPace(athlete.bestSplit,1)+'/km' : 'sem GPS'} | Longa: ${athlete.longestRun.toFixed(1)}km
+${zoneStr}
+${trainingHistory}
 
 OBJETIVO: ${objetivoStr} ${semanasTotaisEstimadas}
 PRÓXIMAS DATAS DISPONÍVEIS (usa ESTAS datas exatas): ${next14.join(', ')}
