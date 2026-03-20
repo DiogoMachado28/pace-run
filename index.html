@@ -4347,8 +4347,7 @@ async function gerarPlano() {
 }
 
 async function gerarPlanoComIA(athlete, cfg, dias, numSemanas, dataProvaInput) {
-  const token = currentSession?.access_token;
-  if (!token) throw new Error('Sem sessão — faz login novamente');
+  if (!currentUser?.id) throw new Error('Sem sessão — faz login novamente');
 
   const hoje = new Date().toISOString().split('T')[0];
   const diasNomes = dias.map(d => ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d]).join(', ');
@@ -4467,9 +4466,8 @@ Tipos de treino:
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
     },
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify({ prompt, user_id: currentUser.id }),
   });
 
   if (!res.ok) {
