@@ -4462,12 +4462,15 @@ Tipos de treino:
 - B2 = Limiar (20-35min a ritmo de limiar, ~85% esforço máximo)
 - C = Longo (resistência, ritmo fácil, distância progressiva)`;
 
+  const body = JSON.stringify({ prompt, user_id: currentUser.id });
+  console.log('Sending to ai-plan:', { user_id: currentUser.id, promptLength: prompt.length, bodyLength: body.length });
+
   const res = await fetch('https://urtvucvjkfffwhkdfclp.supabase.co/functions/v1/ai-plan', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ prompt, user_id: currentUser.id }),
+    body,
   });
 
   if (!res.ok) {
