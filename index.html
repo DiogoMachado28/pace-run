@@ -867,11 +867,15 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
           <div style="font-size:12px;color:var(--muted);margin-top:2px" id="map-subtitle"></div>
         </div>
         <div style="padding:0 20px 12px">
-          <div style="display:flex;gap:8px;margin-bottom:10px">
-            <button onclick="mapSelectAll(true)" style="flex:1;padding:7px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:11px;cursor:pointer">✓ Todas</button>
-            <button onclick="mapSelectAll(false)" style="flex:1;padding:7px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:8px;font-size:11px;cursor:pointer">✕ Nenhuma</button>
+          <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
+            <select id="map-month-filter" onchange="mapChangeMonth(this.value)"
+              style="flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:var(--font-mono);font-size:12px;padding:7px 10px;border-radius:8px;appearance:none">
+              <option value="all">Todos os meses</option>
+            </select>
+            <button onclick="mapSelectAll(true)" style="padding:7px 10px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:11px;cursor:pointer;white-space:nowrap">✓ Todas</button>
+            <button onclick="mapSelectAll(false)" style="padding:7px 10px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:8px;font-size:11px;cursor:pointer;white-space:nowrap">✕ Nenhuma</button>
           </div>
-          <div id="map-run-checklist" style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:4px"></div>
+          <div id="map-run-checklist" style="max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:4px"></div>
         </div>
         <div id="map-container">
           <div id="leaflet-map"></div>
@@ -3122,7 +3126,7 @@ function renderTreinos(filter) {
   // Classify all runs
   const ptKeys = Object.keys(gpxPoints);
   console.log(`renderTreinos: ${runs.length} corridas, gpxPoints keys: ${ptKeys.length} → [${ptKeys.slice(0,5).join(',')}...]`);
-  const classified = runs.map(r => ({ run: r, ...classifyRun(r) }));
+  const classified = [...runs].sort((a,b) => new Date(b.date)-new Date(a.date)).map(r => ({ run: r, ...classifyRun(r) }));
 
   // Summary cards
   const counts = { B1:0, B2:0, C:0, A:0 };
@@ -3532,36 +3536,70 @@ function renderPBs() {
 // ══════════════════════════════════════════
 let mapSelectedIds = new Set();
 
+let mapMonthFilter = 'all'; // 'all' or 'YYYY-MM'
+
 function initMap() {
-  const gpxRuns = runs.filter(r => gpxRoutes[r.id]);
-  const mapData = document.getElementById('map-data');
+  const allGpxRuns = [...runs]
+    .filter(r => gpxRoutes[r.id])
+    .sort((a,b) => new Date(b.date) - new Date(a.date)); // newest first
+
+  const mapData  = document.getElementById('map-data');
   const mapEmpty = document.getElementById('map-empty');
 
-  if (!gpxRuns.length) {
+  if (!allGpxRuns.length) {
     mapData.style.display = 'none';
     mapEmpty.style.display = '';
     return;
   }
   mapData.style.display = '';
   mapEmpty.style.display = 'none';
-  document.getElementById('map-subtitle').textContent = `${gpxRuns.length} rota${gpxRuns.length!==1?'s':''} com GPS`;
 
-  // Build checklist
-  if (!mapSelectedIds.size) gpxRuns.forEach(r => mapSelectedIds.add(r.id));
+  // Build month options from available runs
+  const months = [...new Set(allGpxRuns.map(r => r.date.slice(0,7)))];
+  const monthFilterEl = document.getElementById('map-month-filter');
+  if (monthFilterEl) {
+    const prevVal = monthFilterEl.value;
+    monthFilterEl.innerHTML = '<option value="all">Todos os meses</option>' +
+      months.map(m => {
+        const d = new Date(m + '-15');
+        const label = d.toLocaleDateString('pt-PT', {month:'long', year:'numeric'});
+        return `<option value="${m}"${m===prevVal?'selected':''}>${label}</option>`;
+      }).join('');
+    mapMonthFilter = monthFilterEl.value;
+  }
+
+  renderMapChecklist(allGpxRuns);
+}
+
+function renderMapChecklist(allGpxRuns) {
+  // Filter by selected month
+  const gpxRuns = mapMonthFilter === 'all'
+    ? allGpxRuns
+    : allGpxRuns.filter(r => r.date.startsWith(mapMonthFilter));
+
+  document.getElementById('map-subtitle').textContent =
+    `${gpxRuns.length} rota${gpxRuns.length!==1?'s':''} com GPS${mapMonthFilter!=='all'?' neste mês':''}`;
 
   const colors = ['#e8ff47','#ff6b35','#60a5fa','#4ade80','#f472b6','#fb923c','#a78bfa','#34d399'];
   const colorMap = {};
   gpxRuns.forEach((r, i) => { colorMap[r.id] = colors[i % colors.length]; });
 
+  // On first load of a month, select all runs in that month
+  const anySelected = gpxRuns.some(r => mapSelectedIds.has(r.id));
+  if (!anySelected) gpxRuns.forEach(r => mapSelectedIds.add(r.id));
+
   const cl = document.getElementById('map-run-checklist');
-  cl.innerHTML = gpxRuns.map(r => `
-    <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;background:var(--surface2);border:1px solid var(--border)">
+  cl.innerHTML = gpxRuns.map(r => {
+    const dateStr = new Date(r.date).toLocaleDateString('pt-PT',{day:'2-digit',month:'short'});
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;background:var(--surface2);border:1px solid var(--border)">
       <input type="checkbox" data-id="${r.id}" ${mapSelectedIds.has(r.id)?'checked':''} onchange="mapToggleRun('${r.id}',this.checked)"
         style="accent-color:${colorMap[r.id]};width:14px;height:14px;flex-shrink:0;cursor:pointer">
-      <span style="width:10px;height:10px;border-radius:50%;background:${colorMap[r.id]};flex-shrink:0"></span>
-      <span onclick="openRunModal('${r.id}')" style="font-size:11px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" title="Ver detalhes">${r.name}</span>
+      <span style="width:8px;height:8px;border-radius:50%;background:${colorMap[r.id]};flex-shrink:0"></span>
+      <span onclick="openRunModal('${r.id}')" style="font-size:11px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer">${r.name}</span>
+      <span style="font-size:10px;color:var(--muted);flex-shrink:0">${dateStr}</span>
       <span onclick="openRunModal('${r.id}')" style="font-size:10px;color:var(--accent2);flex-shrink:0;cursor:pointer;font-weight:700">${r.dist.toFixed(1)}km ↗</span>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 
   if (!leafletMap) {
     leafletMap = L.map('leaflet-map', {zoomControl:false, attributionControl:false});
@@ -3571,27 +3609,39 @@ function initMap() {
   redrawMapRoutes(colorMap);
 }
 
+function mapChangeMonth(val) {
+  mapMonthFilter = val;
+  // When changing month, clear selection and re-init
+  mapSelectedIds.clear();
+  const allGpxRuns = [...runs]
+    .filter(r => gpxRoutes[r.id])
+    .sort((a,b) => new Date(b.date) - new Date(a.date));
+  renderMapChecklist(allGpxRuns);
+}
+
 function mapToggleRun(id, checked) {
   if (checked) mapSelectedIds.add(id);
   else mapSelectedIds.delete(id);
-  const gpxRuns = runs.filter(r => gpxRoutes[r.id]);
+  const visibleRuns = [...runs]
+    .filter(r => gpxRoutes[r.id] && (mapMonthFilter === 'all' || r.date.startsWith(mapMonthFilter)))
+    .sort((a,b) => new Date(b.date)-new Date(a.date));
   const colors = ['#e8ff47','#ff6b35','#60a5fa','#4ade80','#f472b6','#fb923c','#a78bfa','#34d399'];
   const colorMap = {};
-  gpxRuns.forEach((r, i) => { colorMap[r.id] = colors[i % colors.length]; });
+  visibleRuns.forEach((r, i) => { colorMap[r.id] = colors[i % colors.length]; });
   redrawMapRoutes(colorMap);
 }
 
 function mapSelectAll(select) {
-  const gpxRuns = runs.filter(r => gpxRoutes[r.id]);
-  if (select) gpxRuns.forEach(r => mapSelectedIds.add(r.id));
-  else mapSelectedIds.clear();
-  // Update checkboxes
-  document.querySelectorAll('#map-run-checklist input[type=checkbox]').forEach(cb => {
-    cb.checked = select;
-  });
+  // Only affect runs currently visible (filtered by month)
+  const visibleRuns = [...runs]
+    .filter(r => gpxRoutes[r.id] && (mapMonthFilter === 'all' || r.date.startsWith(mapMonthFilter)))
+    .sort((a,b) => new Date(b.date)-new Date(a.date));
+  if (select) visibleRuns.forEach(r => mapSelectedIds.add(r.id));
+  else visibleRuns.forEach(r => mapSelectedIds.delete(r.id));
+  document.querySelectorAll('#map-run-checklist input[type=checkbox]').forEach(cb => { cb.checked = select; });
   const colors = ['#e8ff47','#ff6b35','#60a5fa','#4ade80','#f472b6','#fb923c','#a78bfa','#34d399'];
   const colorMap = {};
-  gpxRuns.forEach((r, i) => { colorMap[r.id] = colors[i % colors.length]; });
+  visibleRuns.forEach((r, i) => { colorMap[r.id] = colors[i % colors.length]; });
   redrawMapRoutes(colorMap);
 }
 
