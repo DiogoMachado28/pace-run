@@ -4598,34 +4598,7 @@ async function gerarPlano() {
     showToast(`Tens apenas ${athlete.totalRuns} corrida${athlete.totalRuns===1?'':'s'} — o plano será estimado com dados limitados.`, 4000);
   }
 
-  // ── Realism check ──
-  const realismWarning = _forcarPlano ? null : verificarRealismo(athlete);
-  if (realismWarning) {
-    const chat = document.getElementById('plano-chat');
-    if (chat) {
-      chat.innerHTML += `<div style="display:flex;gap:10px;align-items:flex-start">
-        <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px">✦</div>
-        <div style="background:rgba(255,107,53,.12);border:1px solid rgba(255,107,53,.3);border-radius:12px;padding:14px 16px;font-size:13px;line-height:1.7;flex:1">
-          ${realismWarning.mensagem}
-          ${realismWarning.sugestao ? '<br><br><strong style="color:var(--accent)">Sugestão realista:</strong> ' + realismWarning.sugestao : ''}
-          <br><br>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            ${realismWarning.sugestaoCfg ? `<button onclick="aplicarSugestaoRealismo()" style="background:var(--accent);color:#0a0a0f;border:none;border-radius:8px;padding:8px 14px;font-family:var(--font-display);font-weight:800;font-size:12px;cursor:pointer">Aceitar sugestão</button>` : ''}
-            <button onclick="gerarPlanoForcar()" style="background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-family:var(--font-display);font-size:12px;cursor:pointer">Manter objetivo original</button>
-          </div>
-        </div>
-      </div>`;
-      chat.scrollTop = chat.scrollHeight;
-      document.getElementById('page-plano').querySelector('#plano-loading-msg')?.remove();
-      document.getElementById('plano-setup').style.display = 'block';
-      // Store suggestion for aplicarSugestaoRealismo
-      window._realismSugestao = realismWarning.sugestaoCfg;
-    } else {
-      // No chat UI (renovar flow) — just warn and continue
-      showToast('⚠️ ' + realismWarning.toastMsg, 6000);
-    }
-    if (!realismWarning.permitirContinuar) return;
-  }
+  // Realism check delegated to AI — see prompt
 
   const cfg = planoConfig;
   const dias = distribuirDias(cfg.numDias, cfg.diasEspecificos, cfg.modoDias);
@@ -4820,16 +4793,25 @@ ZONAS DE RITMO (usa valores dentro destes intervalos, arredondados a 5s):
 
 ÚLTIMO TREINO DO ATLETA: ${lastType ? 'Tipo '+lastType+' ('+classifyRun(lastRun).subtype+')' : 'desconhecido'} — não repetir o mesmo tipo no primeiro treino.
 
-REGRAS:
-1. Longo é SEMPRE mais lento que aeróbio (não pode ser mais rápido)
-2. Aquecimento e retorno são SEMPRE mais lentos que o bloco principal
-3. Semana 1 = base/adaptação, nunca taper (taper só nas últimas 2 semanas antes da prova)
+VALIDAÇÃO DO OBJETIVO (faz isto ANTES de gerar o plano):
+- Compara o objetivo com o histórico real do atleta
+- Se a melhoria necessária for >15% do ritmo actual: recusa e sugere objetivo realista
+- Se o objetivo for mais rápido que o melhor km alguma vez registado: recusa
+- Se a melhoria for >5% com menos de 6 semanas: avisa e ajusta objetivo
+- Se o objetivo for ambicioso mas possível (8-15% melhoria): avisa e gera plano conservador
+- Em caso de recusa, coloca a explicação no campo "analise" e gera um plano com objetivo ajustado
+
+REGRAS DE TREINO:
+1. Longo é SEMPRE mais lento que aeróbio (nunca mais rápido)
+2. Aquecimento e retorno SEMPRE mais lentos que o bloco principal
+3. Semana 1 = base/adaptação, NUNCA taper (taper só nas últimas 2 semanas antes da prova)
 4. Sem 2 treinos duros (B1/B2) consecutivos
-5. Corrida longa (C) no último dia disponível
-6. Volume próximo de ${athlete.avgWeeklyKm.toFixed(0)}km/semana
-7. Para B1: especifica número e distância das séries (ex: 6×400m) + ritmo de recuperação
-8. Inclui objetivo do treino na descrição (ex: "Desenvolver resistência ao ritmo de prova")
-9. Usa intervalos de ritmo nos segmentos quando fizer sentido (ex: "4:50-5:00/km")
+5. Corrida longa (C) no último dia disponível da semana
+6. Volume próximo de ${athlete.avgWeeklyKm.toFixed(0)}km/semana (actual do atleta)
+7. Para B1: especifica número e distância exacta das séries (ex: 6×400m a X:XX/km, recuperação 200m a Y:YY/km)
+8. Descrição de cada treino inclui o objetivo fisiológico (ex: "Desenvolver resistência ao ritmo de prova")
+9. Usa intervalos de ritmo quando fizer sentido (ex: "4:50-5:00/km")
+10. Não repetir o mesmo tipo de treino que o último registado
 
 RESPONDE SÓ COM JSON VÁLIDO:
 {"titulo":"10km em 45min","subtitulo":"Prova: 20/06 · 3× semana","analise":"1-2 frases","semanas":[{"num":1,"resumo":"Base aeróbia","kmTotal":${Math.round(athlete.avgWeeklyKm)},"treinos":[{"dia":${exDow1},"diaNome":"${exDia1}","date":"${exDate1}","tipo":"A","nome":"Contínuo fácil","descricao":"Corrida aeróbia a ritmo confortável","distTotal":"6km","duracaoMin":36,"segmentos":[{"seg":"Aquecimento","dist":"1km","ritmo":"${zRecup}/km"},{"seg":"Contínuo","dist":"4km","ritmo":"${zFacil}/km"},{"seg":"Retorno","dist":"1km","ritmo":"${zRecup}/km"}]},{"dia":${exDow2},"diaNome":"${exDia2}","date":"${exDate2}","tipo":"B2","nome":"Treino de limiar","descricao":"Bloco a ritmo de limiar","distTotal":"7km","duracaoMin":38,"segmentos":[{"seg":"Aquecimento","dist":"1.5km","ritmo":"${zRecup}/km"},{"seg":"Limiar","dist":"4km","ritmo":"${zLimiar}/km"},{"seg":"Retorno","dist":"1.5km","ritmo":"${zRecup}/km"}]},{"dia":${exDow3},"diaNome":"${exDia3}","date":"${exDate3}","tipo":"C","nome":"Corrida longa","descricao":"Resistência aeróbia","distTotal":"9km","duracaoMin":54,"segmentos":[{"seg":"Aquecimento","dist":"1km","ritmo":"${zRecup}/km"},{"seg":"Longo","dist":"7.5km","ritmo":"${zLongo}/km"},{"seg":"Retorno","dist":"0.5km","ritmo":"${zRecup}/km"}]}]},{"num":2,"resumo":"Construção","kmTotal":${Math.round(athlete.avgWeeklyKm*1.05)},"treinos":[]}]}
@@ -5101,29 +5083,49 @@ function resetarPlano() {
 }
 
 async function savePlano() {
-  try { await dbSet('plano', planoData); } catch(e) {}
+  // Always save to IndexedDB with user isolation
+  try {
+    await dbSet('plano_' + (currentUser?.id || 'anon'), planoData);
+  } catch(e) { console.warn('savePlano IndexedDB:', e.message); }
+
+  // Save to Supabase
   if (!currentUser) return;
   try {
-    await supa.from('user_settings').upsert({
+    const { error } = await supa.from('user_settings').upsert({
       user_id: currentUser.id, key: 'plano', value: planoData,
     }, { onConflict: 'user_id,key' });
-  } catch(e) {}
+    if (error) console.warn('savePlano Supabase:', error.message);
+  } catch(e) { console.warn('savePlano Supabase exception:', e.message); }
 }
 
 async function loadPlano() {
+  // Try IndexedDB first (per user)
   try {
-    const local = await dbGet('plano');
-    // Treat null/false/undefined all as "no plan"
-    planoData = (local && typeof local === 'object' && Array.isArray(local.semanas)) ? local : null;
-    if (planoData) return;
-  } catch(e) {}
+    const local = await dbGet('plano_' + (currentUser?.id || 'anon'));
+    if (local && typeof local === 'object' && Array.isArray(local.semanas)) {
+      planoData = local;
+      console.log('loadPlano: loaded from IndexedDB, semanas:', planoData.semanas.length);
+      return;
+    }
+  } catch(e) { console.warn('loadPlano IndexedDB:', e.message); }
+
   if (!currentUser) return;
+
+  // Fallback to Supabase
   try {
-    const { data } = await supa.from('user_settings')
+    const { data, error } = await supa.from('user_settings')
       .select('value').eq('user_id', currentUser.id).eq('key', 'plano').maybeSingle();
+    if (error) { console.warn('loadPlano Supabase:', error.message); return; }
     const v = data?.value;
-    planoData = (v && typeof v === 'object' && Array.isArray(v.semanas)) ? v : null;
-  } catch(e) {}
+    if (v && typeof v === 'object' && Array.isArray(v.semanas)) {
+      planoData = v;
+      console.log('loadPlano: loaded from Supabase, semanas:', planoData.semanas.length);
+      // Cache locally for next time
+      try { await dbSet('plano_' + currentUser.id, planoData); } catch(e) {}
+    } else {
+      console.log('loadPlano: no valid plan found');
+    }
+  } catch(e) { console.warn('loadPlano Supabase exception:', e.message); }
 }
 
 // ══════════════════════════════════════════
