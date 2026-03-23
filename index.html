@@ -4484,6 +4484,8 @@ async function enviarMensagemPlano() {
   const msg = input.value.trim();
   if (!msg) return;
   input.value = '';
+  // Track how many times AI asked for clarification
+  window._planoAskCount = (window._planoAskCount || 0);
 
   // Add user message to chat
   const chat = document.getElementById('plano-chat');
@@ -4516,9 +4518,16 @@ async function enviarMensagemPlano() {
       </div>`;
     } else {
       // AI needs more info
+      window._planoAskCount++;
+      // Apply whatever config was extracted so far
+      aplicarConfigIA(interpretation);
+      // After 1 question, also show a skip button
+      const skipBtn = window._planoAskCount >= 1
+        ? `<br><br><button onclick="gerarPlanoSemObjetivo()" style="background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:11px;cursor:pointer;font-family:var(--font-display)">Gerar plano sem objetivo específico →</button>`
+        : '';
       chat.innerHTML += `<div style="display:flex;gap:10px;align-items:flex-start">
         <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px">✦</div>
-        <div style="background:var(--surface2);border-radius:12px 12px 12px 4px;padding:10px 14px;font-size:13px;line-height:1.5">${interpretation.pergunta}</div>
+        <div style="background:var(--surface2);border-radius:12px 12px 12px 4px;padding:10px 14px;font-size:13px;line-height:1.5">${interpretation.pergunta}${skipBtn}</div>
       </div>`;
     }
     chat.scrollTop = chat.scrollHeight;
@@ -4537,6 +4546,24 @@ async function enviarMensagemPlano() {
   }
 }
 
+function gerarPlanoSemObjetivo() {
+  // Generate plan using only history — no specific time goal
+  planoConfig.tipo = 'pace-geral';
+  planoConfig.objetivoTexto = 'Melhorar o pace geral com base no histórico actual — plano ambicioso mas realista';
+  window._planoAskCount = 0;
+  const chat = document.getElementById('plano-chat');
+  if (chat) {
+    chat.innerHTML += `<div style="display:flex;gap:10px;align-items:flex-start">
+      <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px">✦</div>
+      <div style="background:var(--surface2);border-radius:12px 12px 12px 4px;padding:10px 14px;font-size:13px;line-height:1.5">
+        Vou criar um plano de melhoria geral com base no teu histórico, sem objetivo de tempo fixo. O plano será ambicioso mas realista para o teu nível actual.<br><br>
+        <button onclick="gerarPlano()" style="background:var(--accent);color:#0a0a0f;border:none;border-radius:8px;padding:8px 16px;font-family:var(--font-display);font-weight:800;font-size:13px;cursor:pointer">Gerar plano ✦</button>
+      </div>
+    </div>`;
+    chat.scrollTop = chat.scrollHeight;
+  }
+}
+
 async function interpretarObjetivo(msg) {
   if (!currentUser?.id) throw new Error('sem sessão');
   const hoje = new Date().toISOString().split('T')[0];
@@ -4544,11 +4571,17 @@ async function interpretarObjetivo(msg) {
 Mensagem: "${msg}"
 Data de hoje: ${hoje}
 
+REGRAS IMPORTANTES:
+- Se o atleta não tem objetivo de tempo específico (diz "o melhor possível", "melhorar", "sem objetivo específico"), define tipo="pace-geral" e pronto=true — NÃO peças objetivo de tempo
+- Só pede esclarecimento se faltarem os dias de treino por semana (numDias ou dias)
+- Se o atleta já disse quantos dias treina, pronto=true mesmo sem objetivo de tempo
+- Nunca faças mais de 1 pergunta de esclarecimento
+
 Responde APENAS com JSON:
 {
   "pronto": true/false,
-  "pergunta": "se pronto=false, pergunta o que falta",
-  "confirmacao": "se pronto=true, confirma o que entendeste em 1-2 frases",
+  "pergunta": "se pronto=false, UMA pergunta apenas sobre o que falta",
+  "confirmacao": "se pronto=true, confirma em 1-2 frases o que vais fazer",
   "tipo": "prova-pace|prova-tempo|pace-geral",
   "dist": número em km ou null,
   "dataProva": "YYYY-MM-DD ou null",
