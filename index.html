@@ -3907,7 +3907,7 @@ async function syncStrava(fullSync = false) {
     // Fetch GPS streams (latlng + time + distance)
     try {
       const streamRes = await fetch(
-        `https://www.strava.com/api/v3/activities/${act.id}/streams?keys=latlng,time,distance&key_by_type=true`,
+        `https://www.strava.com/api/v3/activities/${act.id}/streams?keys=latlng,time,distance,moving&key_by_type=true`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const streams = await streamRes.json();
@@ -3917,33 +3917,46 @@ async function syncStrava(fullSync = false) {
         if (streams.time?.data && streams.distance?.data) {
           const times = streams.time.data;
           const dists = streams.distance.data.map(d => d / 1000); // to km
-          // Store subsampled points
+          const moving = streams.moving?.data || null; // boolean array, null if not available
+
+          // Store subsampled points — skip paused points
           gpxPoints[id] = times
-            .map((t, i) => ({ dist: dists[i], t: new Date(act.start_date).getTime() + t * 1000 }))
-            .filter((_, i) => i % 3 === 0);
-          // Build km splits using interpolation at exact km boundaries
-          // For each km boundary, interpolate the exact time rather than snapping to nearest GPS point
+            .map((t, i) => ({ dist: dists[i], t: new Date(act.start_date).getTime() + t * 1000, isMoving: moving ? moving[i] : true }))
+            .filter((p, i) => i % 3 === 0 && p.isMoving !== false);
+
+          // Build km splits using MOVING time only
+          // Strategy: for each km boundary, find the cumulative moving time up to that point
+          // by summing only the intervals where the athlete was moving
           const splits = [];
           const totalKm = Math.floor(dists[dists.length - 1]);
-          
-          // Build array of interpolated times at each km boundary (0, 1, 2, ... totalKm)
-          const kmTimes = [0]; // km 0 = start = time 0
+
+          // Build cumulative moving time at each GPS point
+          // movingTime[i] = total moving seconds from start to point i
+          const movingTime = new Array(times.length).fill(0);
+          for (let i = 1; i < times.length; i++) {
+            const intervalSecs = times[i] - times[i - 1];
+            const wasMoving = moving ? (moving[i - 1] !== false && moving[i] !== false) : true;
+            // Also filter by speed: if distance gain < 1m/s over interval it's a pause
+            const distGain = (dists[i] - dists[i - 1]) * 1000; // metres
+            const speed = intervalSecs > 0 ? distGain / intervalSecs : 0; // m/s
+            const likelyMoving = wasMoving && speed > 0.5; // >0.5 m/s = not paused
+            movingTime[i] = movingTime[i - 1] + (likelyMoving ? intervalSecs : 0);
+          }
+
+          // Interpolate moving time at each km boundary
+          const kmMovingTimes = [0];
           for (let km = 1; km <= totalKm; km++) {
-            // Find the two GPS points that straddle this km boundary
             let i = 0;
             while (i < dists.length - 1 && dists[i + 1] < km) i++;
-            if (i >= dists.length - 1) break; // ran out of data
+            if (i >= dists.length - 1) break;
             const d0 = dists[i], d1 = dists[i + 1];
-            const t0 = times[i], t1 = times[i + 1];
-            // Linear interpolation
             const frac = d1 > d0 ? (km - d0) / (d1 - d0) : 0;
-            const tKm = t0 + frac * (t1 - t0);
-            kmTimes.push(tKm);
+            const tKm = movingTime[i] + frac * (movingTime[i + 1] - movingTime[i]);
+            kmMovingTimes.push(tKm);
           }
-          
-          // Each split = time between consecutive km boundaries
-          for (let k = 1; k < kmTimes.length; k++) {
-            const secs = Math.round(kmTimes[k] - kmTimes[k - 1]);
+
+          for (let k = 1; k < kmMovingTimes.length; k++) {
+            const secs = Math.round(kmMovingTimes[k] - kmMovingTimes[k - 1]);
             if (secs > 60 && secs < 1800) splits.push(secs);
           }
           if (splits.length) {
@@ -5077,7 +5090,17 @@ function renovarPlano() {
 function resetarPlano() {
   if (!confirm('Apagar o plano atual e criar um novo?')) return;
   planoData = null;
+  planoConfig.objetivoTexto = '';
   savePlano();
+  // Reset chat to initial state
+  const chat = document.getElementById('plano-chat');
+  if (chat) chat.innerHTML = `<div style="display:flex;gap:10px;align-items:flex-start">
+    <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px">✦</div>
+    <div style="background:var(--surface2);border-radius:12px 12px 12px 4px;padding:10px 14px;font-size:13px;line-height:1.5;flex:1">
+      Olá! Descreve o teu objetivo de corrida e eu crio um plano personalizado com base no teu histórico.<br><br>
+      <span style="color:var(--muted);font-size:12px">Ex: "Quero correr 10km em menos de 48min no dia 15 de maio, consigo treinar 3 vezes por semana às terças, quintas e sábados"</span>
+    </div>
+  </div>`;
   document.getElementById('plano-setup').style.display   = 'block';
   document.getElementById('plano-content').style.display = 'none';
 }
