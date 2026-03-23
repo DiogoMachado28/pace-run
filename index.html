@@ -3085,38 +3085,67 @@ async function analisarCorridaIA() {
   btn.disabled = true;
   result.style.display = 'none';
 
-  // Context: last 8 runs for comparison
-  const recentRuns = [...runs]
-    .sort((a,b) => new Date(b.date)-new Date(a.date))
-    .slice(0, 8)
-    .filter(x => x.id !== r.id);
+  // Is this the most recent run?
+  const sortedRuns = [...runs].sort((a,b) => new Date(b.date)-new Date(a.date));
+  const isLatestRun = sortedRuns[0]?.id === r.id;
+  const daysSince = Math.floor((Date.now() - new Date(r.date)) / 86400000);
 
-  const splits = gpxSplits[r.id] || [];
-  const avgRecentPace = recentRuns.length
-    ? recentRuns.reduce((s,x) => s + x.secs/x.dist, 0) / recentRuns.length
+  // Context: runs before this one (not after)
+  const prevRuns = sortedRuns
+    .filter(x => new Date(x.date) < new Date(r.date))
+    .slice(0, 5);
+
+  const avgRecentPace = prevRuns.length
+    ? prevRuns.reduce((s,x) => s + x.secs/x.dist, 0) / prevRuns.length
     : r.secs/r.dist;
 
   const runType = classifyRun(r);
+  const splits = gpxSplits[r.id] || [];
   const splitStr = splits.length
-    ? splits.map((s,i) => `km${i+1}: ${fmtPace(s,1)}`).join(', ')
+    ? splits.map((s,i) => `km${i+1}: ${fmtPace(s,1)}`).join(' | ')
     : 'sem dados GPS';
 
-  const prompt = `Analisa esta corrida de um atleta em 3-4 frases concisas em português.
+  // Detect if this looks like a race (faster than usual, round distance)
+  const isLikelyRace = (r.secs/r.dist) < avgRecentPace * 0.95 && (
+    Math.abs(r.dist - 5) < 0.15 || Math.abs(r.dist - 10) < 0.15 ||
+    Math.abs(r.dist - 21.1) < 0.2 || Math.abs(r.dist - 42.2) < 0.3
+  );
+
+  const nextRunContext = isLatestRun
+    ? `Esta é a corrida mais recente do atleta (há ${daysSince} dia${daysSince!==1?'s':''}). Inclui uma sugestão de próximo treino.${isLikelyRace ? ' Esta corrida parece uma PROVA/COMPETIÇÃO — o próximo treino deve ser obrigatoriamente de recuperação leve (30-40min muito fácil), independentemente da forma do atleta.' : ''}`
+    : `Esta corrida é de ${daysSince} dias atrás. NÃO faças sugestão de próximo treino — o atleta já treinou desde então.`;
+
+  const prompt = `Analisa esta corrida em texto corrido, 3-4 frases, em português. SEM JSON, SEM bullet points, SEM títulos. Só parágrafos de texto.
 
 CORRIDA: ${r.name} — ${fmtDate(r.date)}
 Distância: ${r.dist.toFixed(2)}km | Tempo: ${fmtTime(r.secs)} | Ritmo médio: ${fmtPace(r.secs,r.dist)}/km
-Tipo detectado: ${runType.type} (${runType.subtype}) | Elevação: ${r.elev}m
-Splits por km: ${splitStr}
+Tipo: ${runType.type} (${runType.subtype}) | Elevação: ${r.elev}m
+Splits: ${splitStr}
 
-CONTEXTO (últimas ${recentRuns.length} corridas):
-Ritmo médio recente: ${fmtPace(Math.round(avgRecentPace),1)}/km
-${recentRuns.slice(0,4).map(x => `${x.date.slice(0,10)}: ${x.dist.toFixed(1)}km @${fmtPace(x.secs,x.dist)}/km`).join('\n')}
+CONTEXTO:
+Ritmo médio das corridas anteriores: ${fmtPace(Math.round(avgRecentPace),1)}/km
+${prevRuns.slice(0,3).map(x => `${x.date.slice(0,10)}: ${x.dist.toFixed(1)}km @${fmtPace(x.secs,x.dist)}/km`).join('\n')}
 
-Avalia: qualidade da execução, consistência dos splits, comparação com histórico recente, e 1 sugestão concreta para o próximo treino. Sem introdução, vai directo à análise.`;
+${nextRunContext}
+
+Avalia a qualidade da execução e consistência dos splits. Compara com o histórico. ${isLatestRun ? 'No final, sugere o próximo treino.' : ''}`;
 
   try {
     const text = await callGeminiIA(prompt);
-    result.innerHTML = text.replace(/\n/g, '<br>');
+    // Strip any accidental JSON or markdown
+    let clean = text.trim();
+    if (clean.startsWith('{')) {
+      // Gemini returned JSON anyway — extract the "analise" field or just show the text value
+      try {
+        const j = JSON.parse(clean.slice(clean.indexOf('{'), clean.lastIndexOf('}')+1));
+        clean = j.analise || j.analysis || j.texto || Object.values(j).find(v => typeof v === 'string' && v.length > 50) || clean;
+      } catch(e) {
+        // Remove JSON structure, keep readable text
+        clean = clean.replace(/[{}"]/g, '').replace(/,\s*\n/g, '\n').replace(/^\s*\w+:\s*/gm, '').trim();
+      }
+    }
+    clean = clean.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\n+/g, '<br><br>');
+    result.innerHTML = clean;
     result.style.display = '';
   } catch(e) {
     result.innerHTML = `<span style="color:var(--accent2)">Erro: ${e.message}</span>`;
