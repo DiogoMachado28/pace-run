@@ -3182,12 +3182,38 @@ function renderIATab() {
   renderZonasSemanais();
   renderCargaTreino();
   renderPrevisaoEstatica();
-  document.getElementById('ia-forecast-result').style.display = 'none';
-  document.getElementById('btn-previsao').style.display = '';
-  document.getElementById('ia-analise-result').style.display = 'none';
-  document.getElementById('btn-analise-completa').style.display = '';
-  document.getElementById('btn-analise-completa').textContent = '✦ Analisar o meu perfil de corredor';
-  document.getElementById('btn-analise-completa').disabled = false;
+
+  // Restore cached analyses from memory
+  const uid = currentUser?.id || 'anon';
+  const cachedPerfil = window._iaCache?.[uid]?.perfil;
+  const cachedPrevisao = window._iaCache?.[uid]?.previsao;
+
+  const perfilResult = document.getElementById('ia-analise-result');
+  const perfilText   = document.getElementById('ia-analise-text');
+  const perfilBtn    = document.getElementById('btn-analise-completa');
+  if (cachedPerfil) {
+    perfilText.innerHTML = cachedPerfil;
+    perfilResult.style.display = '';
+    perfilBtn.style.display = 'none';
+  } else {
+    perfilResult.style.display = 'none';
+    perfilBtn.style.display = '';
+    perfilBtn.textContent = '✦ Analisar o meu perfil de corredor';
+    perfilBtn.disabled = false;
+  }
+
+  const forecastResult = document.getElementById('ia-forecast-result');
+  const forecastBtn    = document.getElementById('btn-previsao');
+  if (cachedPrevisao) {
+    forecastResult.innerHTML = cachedPrevisao;
+    forecastResult.style.display = '';
+    forecastBtn.style.display = 'none';
+  } else {
+    forecastResult.style.display = 'none';
+    forecastBtn.style.display = '';
+    forecastBtn.textContent = '✦ Gerar previsão com IA';
+    forecastBtn.disabled = false;
+  }
 }
 
 function renderZonasSemanais() {
@@ -3296,9 +3322,10 @@ function renderCargaTreino() {
   }
   const avgKm = last4Weeks.reduce((a,b)=>a+b,0) / last4Weeks.length || 1;
 
-  // Days since last run
-  const lastRunDate = runs.length ? new Date(runs[0].date) : null;
-  const daysSinceRun = lastRunDate ? Math.floor((now - lastRunDate) / 86400000) : 99;
+  // Days since last run — sort to get most recent
+  const mostRecentRun = runs.length ? [...runs].sort((a,b) => new Date(b.date)-new Date(a.date))[0] : null;
+  const lastRunDate = mostRecentRun ? new Date(mostRecentRun.date) : null;
+  const daysSinceRun = lastRunDate ? Math.max(0, Math.floor((now - lastRunDate) / 86400000)) : 99;
 
   // Load score (0-100): compare this week to avg
   const loadPct = Math.min(Math.round(thisWeekKm / avgKm * 100), 150);
@@ -3393,6 +3420,11 @@ Com base nestes dados:
     result.innerHTML = text;
     result.style.display = '';
     btn.style.display = 'none';
+    // Cache result
+    const uid = currentUser?.id || 'anon';
+    if (!window._iaCache) window._iaCache = {};
+    if (!window._iaCache[uid]) window._iaCache[uid] = {};
+    window._iaCache[uid].previsao = text;
   } catch(e) {
     result.innerHTML = `<span style="color:var(--accent2)">Erro: ${e.message}</span>`;
     result.style.display = '';
@@ -3466,6 +3498,11 @@ Analisa:
     textEl.innerHTML = text;
     resultEl.style.display = '';
     btn.style.display = 'none';
+    // Cache result
+    const uid = currentUser?.id || 'anon';
+    if (!window._iaCache) window._iaCache = {};
+    if (!window._iaCache[uid]) window._iaCache[uid] = {};
+    window._iaCache[uid].perfil = text;
   } catch(e) {
     textEl.innerHTML = `<span style="color:var(--accent2)">Erro: ${e.message}</span>`;
     resultEl.style.display = '';
