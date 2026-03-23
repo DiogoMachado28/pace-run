@@ -764,6 +764,7 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
           <button class="tab-btn" onclick="showAnalysisTab('treinos',this)">Treinos</button>
           <button class="tab-btn" onclick="showAnalysisTab('monthly',this)">Mensal</button>
           <button class="tab-btn" onclick="showAnalysisTab('pb',this)">Records</button>
+          <button class="tab-btn" onclick="showAnalysisTab('ia',this)">✦ IA</button>
         </div>
 
         <div id="tab-treinos" style="display:none">
@@ -809,6 +810,45 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
           <div style="padding: 16px 0 0">
             <div id="monthly-list"></div>
           </div>
+        </div>
+
+        <div id="tab-ia" style="display:none">
+          <div style="padding:16px 20px 0">
+            <div style="font-family:var(--font-display);font-size:15px;font-weight:800;margin-bottom:4px">Análise IA</div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:16px">O Gemini analisa o teu histórico e dá uma avaliação completa</div>
+          </div>
+          <!-- Análise completa do corredor -->
+          <div style="padding:0 20px 16px">
+            <button onclick="analisarCorredorIA()" id="btn-analise-completa"
+              style="width:100%;padding:13px;background:var(--accent);color:#0a0a0f;border:none;border-radius:12px;font-family:var(--font-display);font-weight:800;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
+              <span>✦</span> Analisar o meu perfil de corredor
+            </button>
+          </div>
+          <div id="ia-analise-result" style="display:none;padding:0 20px 16px">
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;font-size:13px;line-height:1.8;color:var(--text)" id="ia-analise-text"></div>
+          </div>
+          <!-- Zonas de treino semanais -->
+          <div class="section-header" style="margin-top:8px">
+            <span class="section-title">Zonas de treino — últimas 8 semanas</span>
+          </div>
+          <div style="padding:0 20px 20px" id="ia-zones-chart"></div>
+          <!-- Previsão de performance -->
+          <div class="section-header">
+            <span class="section-title">Previsão de performance</span>
+          </div>
+          <div style="padding:0 20px 20px" id="ia-forecast">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px" id="ia-forecast-cards"></div>
+            <button onclick="gerarPrevisaoIA()" id="btn-previsao"
+              style="margin-top:12px;width:100%;padding:11px;background:rgba(232,255,71,.08);border:1px solid rgba(232,255,71,.2);color:var(--accent);border-radius:12px;font-family:var(--font-display);font-weight:700;font-size:13px;cursor:pointer">
+              ✦ Gerar previsão com IA
+            </button>
+            <div id="ia-forecast-result" style="display:none;margin-top:12px;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;font-size:13px;line-height:1.8" id="ia-forecast-text"></div>
+          </div>
+          <!-- Carga e recuperação -->
+          <div class="section-header">
+            <span class="section-title">Carga de treino e recuperação</span>
+          </div>
+          <div style="padding:0 20px 24px" id="ia-load-section"></div>
         </div>
 
         <div id="tab-pb" style="display:none">
@@ -1070,6 +1110,13 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
     <div id="modal-pace-chart-section" style="display:none;margin-bottom:16px">
       <div style="font-family:var(--font-display);font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Ritmo ao longo da corrida</div>
       <canvas id="modal-pace-canvas" style="width:100%;height:100px;display:block"></canvas>
+    </div>
+    <div id="modal-ai-section" style="margin-bottom:12px">
+      <button onclick="analisarCorridaIA()" id="btn-analisar-ia"
+        style="width:100%;padding:11px;background:rgba(232,255,71,.08);border:1px solid rgba(232,255,71,.2);color:var(--accent);border-radius:12px;font-family:var(--font-display);font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
+        <span>✦</span> Analisar com IA
+      </button>
+      <div id="modal-ai-result" style="display:none;margin-top:10px;padding:12px 14px;background:rgba(232,255,71,.05);border:1px solid rgba(232,255,71,.12);border-radius:10px;font-size:12px;line-height:1.7;color:var(--text)"></div>
     </div>
     <button class="btn-delete" onclick="deleteCurrentRun()">🗑️ Eliminar corrida</button>
   </div>
@@ -2985,12 +3032,385 @@ async function deleteCurrentRun() {
 //  ANALYSIS
 // ══════════════════════════════════════════
 function showAnalysisTab(tab, btn) {
-  ['pace','treinos','monthly','pb'].forEach(t => {
+  ['pace','treinos','monthly','pb','ia'].forEach(t => {
     document.getElementById('tab-'+t).style.display = t===tab ? '' : 'none';
   });
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   if (tab === 'treinos') renderTreinos('all');
+  if (tab === 'ia') renderIATab();
+}
+
+// ══════════════════════════════════════════
+//  AI ANALYSIS FEATURES
+// ══════════════════════════════════════════
+
+// Helper: call Gemini via Edge Function
+async function callGeminiIA(prompt, maxTokens) {
+  if (!currentUser?.id) throw new Error('Sem sessão');
+  const res = await fetch('https://urtvucvjkfffwhkdfclp.supabase.co/functions/v1/ai-plan', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, user_id: currentUser.id }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || res.status);
+  }
+  const data = await res.json();
+  return data.text || '';
+}
+
+// ── Feature 1: Analyse individual run ──
+async function analisarCorridaIA() {
+  const r = runs.find(x => x.id === currentRunId);
+  if (!r) return;
+
+  const btn = document.getElementById('btn-analisar-ia');
+  const result = document.getElementById('modal-ai-result');
+  btn.textContent = '✦ A analisar...';
+  btn.disabled = true;
+  result.style.display = 'none';
+
+  // Context: last 8 runs for comparison
+  const recentRuns = [...runs]
+    .sort((a,b) => new Date(b.date)-new Date(a.date))
+    .slice(0, 8)
+    .filter(x => x.id !== r.id);
+
+  const splits = gpxSplits[r.id] || [];
+  const avgRecentPace = recentRuns.length
+    ? recentRuns.reduce((s,x) => s + x.secs/x.dist, 0) / recentRuns.length
+    : r.secs/r.dist;
+
+  const runType = classifyRun(r);
+  const splitStr = splits.length
+    ? splits.map((s,i) => `km${i+1}: ${fmtPace(s,1)}`).join(', ')
+    : 'sem dados GPS';
+
+  const prompt = `Analisa esta corrida de um atleta em 3-4 frases concisas em português.
+
+CORRIDA: ${r.name} — ${fmtDate(r.date)}
+Distância: ${r.dist.toFixed(2)}km | Tempo: ${fmtTime(r.secs)} | Ritmo médio: ${fmtPace(r.secs,r.dist)}/km
+Tipo detectado: ${runType.type} (${runType.subtype}) | Elevação: ${r.elev}m
+Splits por km: ${splitStr}
+
+CONTEXTO (últimas ${recentRuns.length} corridas):
+Ritmo médio recente: ${fmtPace(Math.round(avgRecentPace),1)}/km
+${recentRuns.slice(0,4).map(x => `${x.date.slice(0,10)}: ${x.dist.toFixed(1)}km @${fmtPace(x.secs,x.dist)}/km`).join('\n')}
+
+Avalia: qualidade da execução, consistência dos splits, comparação com histórico recente, e 1 sugestão concreta para o próximo treino. Sem introdução, vai directo à análise.`;
+
+  try {
+    const text = await callGeminiIA(prompt);
+    result.innerHTML = text.replace(/\n/g, '<br>');
+    result.style.display = '';
+  } catch(e) {
+    result.innerHTML = `<span style="color:var(--accent2)">Erro: ${e.message}</span>`;
+    result.style.display = '';
+  } finally {
+    btn.innerHTML = '<span>✦</span> Analisar com IA';
+    btn.disabled = false;
+  }
+}
+
+// ── Feature 2: Render IA tab (zones + load) ──
+function renderIATab() {
+  renderZonasSemanais();
+  renderCargaTreino();
+  renderPrevisaoEstatica();
+  document.getElementById('ia-forecast-result').style.display = 'none';
+  document.getElementById('btn-previsao').style.display = '';
+  document.getElementById('ia-analise-result').style.display = 'none';
+  document.getElementById('btn-analise-completa').style.display = '';
+  document.getElementById('btn-analise-completa').textContent = '✦ Analisar o meu perfil de corredor';
+  document.getElementById('btn-analise-completa').disabled = false;
+}
+
+function renderZonasSemanais() {
+  const container = document.getElementById('ia-zones-chart');
+  if (!container) return;
+
+  // Collect all splits across all runs, bucketed by week
+  const now = new Date();
+  const weeks = [];
+  for (let w = 7; w >= 0; w--) {
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - ((now.getDay()+6)%7) - w*7);
+    monday.setHours(0,0,0,0);
+    const sunday = new Date(monday); sunday.setDate(monday.getDate()+6); sunday.setHours(23,59,59,999);
+    const label = monday.toLocaleDateString('pt-PT',{day:'2-digit',month:'2-digit'});
+
+    // Get all splits for this week
+    const weekRuns = runs.filter(r => { const d=new Date(r.date); return d>=monday && d<=sunday; });
+    let z1=0, z2=0, z3=0, z4=0; // km in each zone
+
+    weekRuns.forEach(r => {
+      const splitsArr = gpxSplits[r.id];
+      if (splitsArr && splitsArr.length) {
+        const athlete = analisarCorredor();
+        if (!athlete) return;
+        const zones = athlete.zones;
+        splitsArr.forEach(s => {
+          if (!zones) {
+            // fallback: classify by relative pace
+            const avg = athlete.avgPaceSec;
+            if (s < avg * 0.88) z4 += 1;
+            else if (s < avg * 0.95) z3 += 1;
+            else if (s < avg * 1.05) z2 += 1;
+            else z1 += 1;
+          } else {
+            if (s <= zones.intervalBoundary) z4 += 1;
+            else if (s <= zones.thresholdBoundary) z3 += 1;
+            else if (s <= zones.easyBoundary) z2 += 1;
+            else z1 += 1;
+          }
+        });
+      } else if (r.dist > 0) {
+        // No splits — classify whole run by avg pace
+        const athlete = analisarCorredor();
+        if (!athlete) return;
+        const avg = athlete.avgPaceSec;
+        const pace = r.secs / r.dist;
+        const km = r.dist;
+        if (pace < avg * 0.88) z4 += km;
+        else if (pace < avg * 0.95) z3 += km;
+        else if (pace < avg * 1.05) z2 += km;
+        else z1 += km;
+      }
+    });
+
+    weeks.push({ label, z1, z2, z3, z4, total: z1+z2+z3+z4 });
+  }
+
+  const maxTotal = Math.max(...weeks.map(w => w.total), 1);
+  const zoneColors = { z1:'rgba(96,165,250,.7)', z2:'rgba(74,222,128,.7)', z3:'rgba(251,191,36,.7)', z4:'rgba(255,107,53,.9)' };
+  const zoneLabels = { z1:'Z1 Recup', z2:'Z2 Aeróbio', z3:'Z3 Limiar', z4:'Z4 Intervalos' };
+
+  container.innerHTML = `
+    <div style="display:flex;gap:4px;align-items:flex-end;height:80px;margin-bottom:8px">
+      ${weeks.map(w => {
+        const h = w.total > 0 ? (w.total/maxTotal*100).toFixed(0) : 0;
+        const pcts = ['z4','z3','z2','z1'].map(z => ({ z, pct: w.total > 0 ? (w[z]/w.total*100).toFixed(0) : 0 }));
+        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:1px" title="${w.label}: ${w.total.toFixed(1)}km">
+          <div style="width:100%;height:${h}px;display:flex;flex-direction:column-reverse;border-radius:3px 3px 0 0;overflow:hidden;min-height:${w.total>0?'4px':'0'}">
+            ${pcts.map(({z,pct}) => pct>0 ? `<div style="width:100%;height:${pct}%;background:${zoneColors[z]};min-height:2px"></div>` : '').join('')}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="display:flex;gap:4px;margin-bottom:12px">
+      ${weeks.map(w => `<div style="flex:1;text-align:center;font-size:8px;color:var(--muted)">${w.label.slice(0,5)}</div>`).join('')}
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      ${Object.entries(zoneColors).reverse().map(([z,c]) => `
+        <div style="display:flex;align-items:center;gap:5px">
+          <div style="width:10px;height:10px;border-radius:2px;background:${c}"></div>
+          <span style="font-size:10px;color:var(--muted)">${zoneLabels[z]}</span>
+        </div>`).join('')}
+    </div>`;
+}
+
+// ── Feature 4: Training load & recovery ──
+function renderCargaTreino() {
+  const container = document.getElementById('ia-load-section');
+  if (!container) return;
+
+  const now = new Date();
+  // Current week km
+  const monday = new Date(now); monday.setDate(now.getDate()-((now.getDay()+6)%7)); monday.setHours(0,0,0,0);
+  const sunday = new Date(monday); sunday.setDate(monday.getDate()+6); sunday.setHours(23,59,59,999);
+  const thisWeekKm = runs.filter(r=>{const d=new Date(r.date);return d>=monday&&d<=sunday;}).reduce((s,r)=>s+r.dist,0);
+  const thisWeekRuns = runs.filter(r=>{const d=new Date(r.date);return d>=monday&&d<=sunday;}).length;
+
+  // Last 4 weeks avg
+  const last4Weeks = [];
+  for (let w = 1; w <= 4; w++) {
+    const wMon = new Date(monday); wMon.setDate(monday.getDate()-w*7);
+    const wSun = new Date(wMon); wSun.setDate(wMon.getDate()+6); wSun.setHours(23,59,59,999);
+    const km = runs.filter(r=>{const d=new Date(r.date);return d>=wMon&&d<=wSun;}).reduce((s,r)=>s+r.dist,0);
+    last4Weeks.push(km);
+  }
+  const avgKm = last4Weeks.reduce((a,b)=>a+b,0) / last4Weeks.length || 1;
+
+  // Days since last run
+  const lastRunDate = runs.length ? new Date(runs[0].date) : null;
+  const daysSinceRun = lastRunDate ? Math.floor((now - lastRunDate) / 86400000) : 99;
+
+  // Load score (0-100): compare this week to avg
+  const loadPct = Math.min(Math.round(thisWeekKm / avgKm * 100), 150);
+  const loadColor = loadPct > 120 ? 'var(--accent2)' : loadPct > 80 ? 'var(--accent)' : 'var(--success)';
+  const loadLabel = loadPct > 120 ? 'Carga elevada — considera descanso' : loadPct > 80 ? 'Carga normal' : 'Carga baixa';
+
+  // Recovery score: based on days since last run and this week's intensity
+  const hardRuns = runs.filter(r => {
+    const d = new Date(r.date);
+    return d >= monday && d <= sunday && classifyRun(r).type !== 'A';
+  }).length;
+  const recoveryScore = Math.max(0, Math.min(100, 100 - (hardRuns * 20) + (daysSinceRun * 15)));
+  const recovColor = recoveryScore > 70 ? 'var(--success)' : recoveryScore > 40 ? 'var(--accent)' : 'var(--accent2)';
+  const recovLabel = recoveryScore > 70 ? 'Bem recuperado' : recoveryScore > 40 ? 'Recuperação parcial' : 'Precisa de descanso';
+
+  container.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Carga esta semana</div>
+        <div style="font-family:var(--font-display);font-size:28px;font-weight:800;color:${loadColor}">${loadPct}%</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">${thisWeekKm.toFixed(1)}km de ${avgKm.toFixed(1)}km média</div>
+        <div style="height:4px;background:var(--surface2);border-radius:2px;margin-top:8px;overflow:hidden">
+          <div style="height:100%;width:${Math.min(loadPct,100)}%;background:${loadColor};border-radius:2px"></div>
+        </div>
+        <div style="font-size:10px;color:${loadColor};margin-top:6px">${loadLabel}</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Recuperação</div>
+        <div style="font-family:var(--font-display);font-size:28px;font-weight:800;color:${recovColor}">${recoveryScore}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">${daysSinceRun === 0 ? 'Correste hoje' : daysSinceRun === 1 ? 'Última corrida ontem' : `Última corrida há ${daysSinceRun} dias`}</div>
+        <div style="height:4px;background:var(--surface2);border-radius:2px;margin-top:8px;overflow:hidden">
+          <div style="height:100%;width:${recoveryScore}%;background:${recovColor};border-radius:2px"></div>
+        </div>
+        <div style="font-size:10px;color:${recovColor};margin-top:6px">${recovLabel}</div>
+      </div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px">
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Volume — últimas 4 semanas</div>
+      <div style="display:flex;gap:6px;align-items:flex-end;height:50px">
+        ${[...last4Weeks].reverse().map((km,i) => {
+          const h = maxKm => km > 0 ? Math.max(8, Math.round(km/maxKm*50)) : 4;
+          const max = Math.max(...last4Weeks, thisWeekKm, 1);
+          const isThis = i === 3;
+          return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+            <div style="width:100%;height:${Math.max(4,Math.round(km/max*50))}px;background:${isThis?loadColor:'var(--surface2)'};border-radius:3px 3px 0 0;min-height:4px"></div>
+            <div style="font-size:9px;color:var(--muted)">${km.toFixed(0)}km</div>
+          </div>`;
+        }).join('')}
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+          <div style="width:100%;height:${Math.max(4,Math.round(thisWeekKm/Math.max(...last4Weeks,thisWeekKm,1)*50))}px;background:${loadColor};border-radius:3px 3px 0 0;min-height:4px;border:1px dashed ${loadColor}"></div>
+          <div style="font-size:9px;color:${loadColor};font-weight:700">${thisWeekKm.toFixed(0)}km</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:2px">
+        ${[...last4Weeks].reverse().map((_,i) => `<div style="flex:1;text-align:center;font-size:8px;color:var(--muted)">-${3-i}sem</div>`).join('')}
+        <div style="flex:1;text-align:center;font-size:8px;color:${loadColor}">esta</div>
+      </div>
+    </div>`;
+}
+
+// ── Feature 3: AI performance forecast ──
+async function gerarPrevisaoIA() {
+  const btn = document.getElementById('btn-previsao');
+  const result = document.getElementById('ia-forecast-result');
+  btn.textContent = '✦ A calcular...';
+  btn.disabled = true;
+
+  const athlete = analisarCorredor();
+  if (!athlete) { btn.textContent = '✦ Gerar previsão com IA'; btn.disabled = false; return; }
+
+  const recentRuns = [...runs].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,12)
+    .map(r => `${r.date.slice(0,10)} ${r.dist.toFixed(1)}km @${fmtPace(r.secs,r.dist)}/km`).join('\n');
+
+  const prompt = `Analisa o histórico deste corredor e faz previsões realistas de performance em português. Responde em 4-5 frases directas, sem introdução.
+
+HISTÓRICO RECENTE:
+${recentRuns}
+Volume médio: ${athlete.avgWeeklyKm.toFixed(1)}km/sem | Ritmo médio: ${fmtPace(athlete.avgPaceSec,1)}/km
+Melhor km: ${athlete.bestSplit ? fmtPace(athlete.bestSplit,1)+'/km' : 'sem dados'} | Longa: ${athlete.longestRun.toFixed(1)}km
+Tendência: ${athlete.trend > 5 ? 'a melhorar' : athlete.trend < -5 ? 'a regredir' : 'estável'}
+Treinos recentes: A=${athlete.typeCounts.A} B1=${athlete.typeCounts.B1} B2=${athlete.typeCounts.B2} C=${athlete.typeCounts.C}
+
+Com base nestes dados:
+1. Qual o nível actual do atleta (iniciante/intermédio/avançado) e porquê
+2. Tempo estimado actual num 10km e meia maratona
+3. Tempo estimado daqui a 4 semanas mantendo o treino actual
+4. Tempo estimado daqui a 12 semanas com treino optimizado (3-4x/semana com variedade)
+5. Principal ponto a melhorar para evoluir mais rápido`;
+
+  try {
+    const text = await callGeminiIA(prompt);
+    result.innerHTML = text.replace(/\n/g, '<br>');
+    result.style.display = '';
+    btn.style.display = 'none';
+  } catch(e) {
+    result.innerHTML = `<span style="color:var(--accent2)">Erro: ${e.message}</span>`;
+    result.style.display = '';
+    btn.textContent = '✦ Gerar previsão com IA';
+    btn.disabled = false;
+  }
+}
+
+// ── Feature 3b: Static performance estimates (no AI needed) ──
+function renderPrevisaoEstatica() {
+  const athlete = analisarCorredor();
+  if (!athlete) return;
+  const cards = document.getElementById('ia-forecast-cards');
+  if (!cards) return;
+
+  // Jack Daniels VDOT-based estimates from current pace
+  const avgPaceMin = athlete.avgPaceSec / 60;
+  // Estimate 10km time from avg pace (avg pace ≈ 10km race pace * 1.05 for moderate runners)
+  const est10km = Math.round(athlete.avgPaceSec * 0.97 * 10);
+  const estHalf = Math.round(athlete.avgPaceSec * 1.08 * 21.1);
+
+  cards.innerHTML = [
+    { label: '10 km estimado', val: fmtTime(est10km), sub: `@ ${fmtPace(Math.round(est10km/10),1)}/km` },
+    { label: 'Meia maratona', val: fmtTime(estHalf), sub: `@ ${fmtPace(Math.round(estHalf/21.1),1)}/km` },
+  ].map(c => `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+    <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">${c.label}</div>
+    <div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--accent)">${c.val}</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:3px">${c.sub}</div>
+  </div>`).join('');
+}
+
+// ── Full athlete profile analysis ──
+async function analisarCorredorIA() {
+  const btn = document.getElementById('btn-analise-completa');
+  const resultEl = document.getElementById('ia-analise-result');
+  const textEl = document.getElementById('ia-analise-text');
+  btn.textContent = '✦ A analisar...';
+  btn.disabled = true;
+
+  const athlete = analisarCorredor();
+  if (!athlete) { btn.textContent = '✦ Analisar o meu perfil de corredor'; btn.disabled = false; return; }
+
+  const recentRuns = [...runs].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,15)
+    .map(r => {
+      const t = classifyRun(r).type;
+      const splits = gpxSplits[r.id];
+      const splitStr = splits ? splits.slice(0,4).map((s,i)=>`km${i+1}:${fmtPace(s,1)}`).join(' ') : '';
+      return `${r.date.slice(0,10)} ${t} ${r.dist.toFixed(1)}km @${fmtPace(r.secs,r.dist)}/km${splitStr?' ['+splitStr+']':''}`;
+    }).join('\n');
+
+  const prompt = `Faz uma análise completa deste corredor em português. Sem introdução, vai directo ao conteúdo. Usa parágrafos curtos.
+
+HISTÓRICO (últimas 15 corridas):
+${recentRuns}
+
+Volume médio: ${athlete.avgWeeklyKm.toFixed(1)}km/sem
+Ritmo médio: ${fmtPace(athlete.avgPaceSec,1)}/km
+Melhor km: ${athlete.bestSplit ? fmtPace(athlete.bestSplit,1)+'/km' : 'sem dados GPS'}
+Corrida mais longa: ${athlete.longestRun.toFixed(1)}km
+Tendência: ${athlete.trend > 5 ? 'a melhorar ('+Math.round(athlete.trend)+'s/km)' : athlete.trend < -5 ? 'a regredir ('+Math.round(Math.abs(athlete.trend))+'s/km)' : 'estável'}
+Distribuição de treinos: A(contínuo)=${athlete.typeCounts.A} B1(séries)=${athlete.typeCounts.B1} B2(limiar)=${athlete.typeCounts.B2} C(longo)=${athlete.typeCounts.C}
+
+Analisa:
+1. **Nível e perfil**: que tipo de corredor é, nível actual, pontos fortes
+2. **Padrões de treino**: o que está a fazer bem e o que falta na distribuição de treinos
+3. **Evolução**: como está a evoluir e a que ritmo
+4. **3 recomendações concretas** para melhorar nos próximos 2 meses`;
+
+  try {
+    const text = await callGeminiIA(prompt);
+    // Convert **bold** markdown to HTML
+    const html = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
+    textEl.innerHTML = html;
+    resultEl.style.display = '';
+    btn.style.display = 'none';
+  } catch(e) {
+    textEl.innerHTML = `<span style="color:var(--accent2)">Erro: ${e.message}</span>`;
+    resultEl.style.display = '';
+    btn.textContent = '✦ Analisar o meu perfil de corredor';
+    btn.disabled = false;
+  }
 }
 
 function renderAnalysis() {
