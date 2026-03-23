@@ -1125,19 +1125,18 @@ const _stravaCodeOnLoad = (() => {
 })();
 const SUPA_URL = 'https://urtvucvjkfffwhkdfclp.supabase.co';
 const SUPA_KEY = 'sb_publishable_x0COUdZugcp_Ft70WYu4iQ__7NirBOA';
-// persistSession:false — Supabase will NOT store the session in localStorage.
-// This prevents auto-login on page load/refresh. Users must always log in explicitly.
-// The session lives only in memory for the duration of the tab.
-// detectSessionInUrl:true is still needed for the Strava OAuth callback.
+// persistSession:true — session is stored in localStorage and survives refresh.
+// autoRefreshToken:true — token renews automatically before expiry (1h default).
+// User stays logged in until they click "Sair" explicitly.
 const supa = supabase.createClient(SUPA_URL, SUPA_KEY, {
   auth: {
-    persistSession: false,
-    autoRefreshToken: false,
+    persistSession: true,
+    autoRefreshToken: true,
     detectSessionInUrl: true,
   }
 });
 let currentUser = null;
-let currentSession = null; // stored in memory since persistSession:false
+let currentSession = null;
 
 async function doLogin() {
   const email = document.getElementById('login-email').value.trim();
@@ -1203,10 +1202,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Auth state — drives the whole app lifecycle
-// With persistSession:false, SIGNED_IN only fires on:
-//   1. Explicit login (user clicked Entrar)
-//   2. Strava OAuth callback (detectSessionInUrl picks up the token from URL)
-// It will NEVER fire automatically on page load/refresh.
+// INITIAL_SESSION fires on page load/refresh if a session exists in localStorage
+// SIGNED_IN fires on explicit login or Strava OAuth callback
 let _appBooted = false;
 let _activeUserId = null;
 
@@ -1224,17 +1221,17 @@ supa.auth.onAuthStateChange(async (event, session) => {
     return;
   }
 
-  // Only act on SIGNED_IN
-  if (event !== 'SIGNED_IN') return;
+  // Act on SIGNED_IN (explicit login) and INITIAL_SESSION (refresh with saved session)
+  if (event !== 'SIGNED_IN' && event !== 'INITIAL_SESSION') return;
 
   // Ignore duplicate events for the same user
   if (_activeUserId === session.user.id) {
-    console.log('Auth: duplicate SIGNED_IN for same user, ignoring');
+    console.log('Auth: duplicate event for same user, ignoring');
     return;
   }
   _activeUserId = session.user.id;
   currentUser = session.user;
-  currentSession = session; // store for API calls (persistSession:false means getSession() won't work)
+  currentSession = session; // store for Edge Function calls
   showApp();
 
   // Handle Strava OAuth callback if present
@@ -3826,7 +3823,7 @@ async function connectStrava() {
   const state = 'strava_' + Date.now();
   sessionStorage.setItem('strava_state', state);
   // Save current session so we can restore it after the OAuth redirect
-  // (with persistSession:false the session lives only in memory)
+
   try {
     const { data } = await supa.auth.getSession();
     if (data?.session) {
