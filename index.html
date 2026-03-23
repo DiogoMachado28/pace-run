@@ -2818,6 +2818,12 @@ function openRunModal(id) {
   document.getElementById('modal-calories').textContent = r.cals || '—';
   document.getElementById('modal-bestsplit').textContent = r.bestSplit ? fmtPace(r.bestSplit, 1) : '—';
 
+  // Always clear previous AI analysis
+  const aiResult = document.getElementById('modal-ai-result');
+  const aiBtn = document.getElementById('btn-analisar-ia');
+  if (aiResult) { aiResult.style.display = 'none'; aiResult.innerHTML = ''; }
+  if (aiBtn) { aiBtn.innerHTML = '<span>✦</span> Analisar com IA'; aiBtn.disabled = false; }
+
   // Splits
   const splits = gpxSplits[id];
   const splitsSection = document.getElementById('modal-splits-section');
@@ -3071,7 +3077,35 @@ async function callGeminiIA(prompt, maxTokens) {
     throw new Error(err.error || res.status);
   }
   const data = await res.json();
-  return data.text || '';
+  return extractTextFromGemini(data.text || '');
+}
+
+// Strip JSON formatting — extract readable text from any Gemini response
+function extractTextFromGemini(raw) {
+  let text = raw.trim();
+  // If it's JSON, extract all string values recursively
+  if (text.startsWith('{') || text.startsWith('[')) {
+    try {
+      const obj = JSON.parse(text.slice(text.indexOf('{') > -1 ? text.indexOf('{') : 0, text.lastIndexOf('}') + 1));
+      // Collect all string values longer than 40 chars (likely prose, not keys)
+      const strings = [];
+      const collect = (v) => {
+        if (typeof v === 'string' && v.length > 40) strings.push(v);
+        else if (typeof v === 'object' && v) Object.values(v).forEach(collect);
+      };
+      collect(obj);
+      if (strings.length) text = strings.join('\n\n');
+    } catch(e) {
+      // Remove JSON syntax chars, keep text
+      text = text.replace(/[{}\[\]"]/g, ' ').replace(/,\s*\n/g, '\n')
+        .replace(/^\s*[\w_]+:\s*/gm, '').trim();
+    }
+  }
+  // Convert **bold** markdown
+  text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  // Convert newlines to <br>
+  text = text.replace(/\n{2,}/g, '<br><br>').replace(/\n/g, '<br>');
+  return text;
 }
 
 // ── Feature 1: Analyse individual run ──
@@ -3132,20 +3166,7 @@ Avalia a qualidade da execução e consistência dos splits. Compara com o hist�
 
   try {
     const text = await callGeminiIA(prompt);
-    // Strip any accidental JSON or markdown
-    let clean = text.trim();
-    if (clean.startsWith('{')) {
-      // Gemini returned JSON anyway — extract the "analise" field or just show the text value
-      try {
-        const j = JSON.parse(clean.slice(clean.indexOf('{'), clean.lastIndexOf('}')+1));
-        clean = j.analise || j.analysis || j.texto || Object.values(j).find(v => typeof v === 'string' && v.length > 50) || clean;
-      } catch(e) {
-        // Remove JSON structure, keep readable text
-        clean = clean.replace(/[{}"]/g, '').replace(/,\s*\n/g, '\n').replace(/^\s*\w+:\s*/gm, '').trim();
-      }
-    }
-    clean = clean.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\n+/g, '<br><br>');
-    result.innerHTML = clean;
+    result.innerHTML = text;
     result.style.display = '';
   } catch(e) {
     result.innerHTML = `<span style="color:var(--accent2)">Erro: ${e.message}</span>`;
@@ -3369,7 +3390,7 @@ Com base nestes dados:
 
   try {
     const text = await callGeminiIA(prompt);
-    result.innerHTML = text.replace(/\n/g, '<br>');
+    result.innerHTML = text;
     result.style.display = '';
     btn.style.display = 'none';
   } catch(e) {
@@ -3442,9 +3463,7 @@ Analisa:
 
   try {
     const text = await callGeminiIA(prompt);
-    // Convert **bold** markdown to HTML
-    const html = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
-    textEl.innerHTML = html;
+    textEl.innerHTML = text;
     resultEl.style.display = '';
     btn.style.display = 'none';
   } catch(e) {
