@@ -1305,31 +1305,17 @@ supa.auth.onAuthStateChange(async (event, session) => {
   _appBooted = true;
 
   try { await load(); } catch(e) { console.log('load error:', e.message); }
-  try { await loadStravaTokens(); } catch(e) { console.log('loadStrava error:', e.message); }
+  try { await loadStravaTokens(); } catch(e) {
+    console.log('loadStrava error:', e.message);
+    // Still show strava button even if token load fails
+    updateStravaBtn();
+  }
   try { await loadPlano(); } catch(e) { console.log('loadPlano error:', e.message); }
   renderAll();
   console.log('renderAll done, runs:', runs.length);
 });
 
-// On page load, always try to restore IndexedDB data immediately.
-// This runs independently of auth — if the user has local cached data,
-// we pre-load it so it's ready the moment they log in (no delay after login).
-(async () => {
-  try {
-    await openDB();
-    const [r, rt, sp, pt] = await Promise.all([
-      dbGet('runs'), dbGet('gpxRoutes'), dbGet('gpxSplits'), dbGet('gpxPoints')
-    ]);
-    if (r && r.length > 0) {
-      runs = r;
-      if (rt) gpxRoutes = rt;
-      if (sp) gpxSplits = sp;
-      if (pt) gpxPoints = pt;
-      applyRaceOverrides();
-      console.log('Pre-loaded', runs.length, 'runs from IndexedDB');
-    }
-  } catch(e) { /* silent — IndexedDB may be empty */ }
-})();
+// IndexedDB pre-load removed — handled by load() after auth
 
 // ══════════════════════════════════════════
 //  INDEXEDDB (cache local)
@@ -1545,7 +1531,8 @@ async function load() {
   // Step 1: Load from IndexedDB (instant, works offline)
   console.log('load: opening IndexedDB...');
   let hasLocalData = false;
-  const userId = currentUser?.id; // capture at call time
+  const userId = currentUser?.id; // capture at call time — avoids race with auth events
+  if (!userId) { console.log('load: no user, skipping'); return; }
   try {
     await openDB();
     console.log('load: IndexedDB open, fetching...');
