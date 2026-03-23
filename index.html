@@ -1481,6 +1481,7 @@ async function load() {
   // Step 1: Load from IndexedDB (instant, works offline)
   console.log('load: opening IndexedDB...');
   let hasLocalData = false;
+  const userId = currentUser?.id; // capture at call time
   try {
     await openDB();
     console.log('load: IndexedDB open, fetching...');
@@ -1488,21 +1489,21 @@ async function load() {
       dbGet('runs'), dbGet('gpxRoutes'), dbGet('gpxSplits'), dbGet('gpxPoints'),
       dbGet('owner_user_id'),
     ]);
-    // Only use cached data if it belongs to the current user
-    if (r && r.length > 0 && ownerId === currentUser?.id) {
+    // Use cached data if it belongs to the current user (or if no owner recorded yet = first load)
+    if (r && r.length > 0 && (ownerId === userId || !ownerId)) {
       runs = r; hasLocalData = true;
       if (rt) gpxRoutes = rt;
       if (sp) gpxSplits = sp;
       if (pt) gpxPoints = pt;
       applyRaceOverrides();
       dbSet('runs', runs).catch(() => {}); // persist bestSplit corrections
-    } else if (ownerId !== currentUser?.id) {
+    } else if (ownerId && userId && ownerId !== userId) {
       // Stale data from a different user — clear it
       console.log('load: IndexedDB has data from different user, clearing...');
       await Promise.all([
         dbSet('runs', []), dbSet('gpxRoutes', {}),
         dbSet('gpxSplits', {}), dbSet('gpxPoints', {}),
-        dbSet('owner_user_id', currentUser?.id),
+        dbSet('owner_user_id', userId),
       ]);
     }
     console.log('load: IndexedDB done, runs:', runs.length);
@@ -1518,13 +1519,13 @@ async function load() {
   }
 
   // Step 3: Sync from Supabase in background (source of truth)
-  if (!currentUser) { showAppLoading(false); return; }
+  if (!userId) { showAppLoading(false); return; }
   console.log('load: fetching from Supabase...');
   try {
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000));
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000));
     const fetchData = Promise.all([
-      supa.from('runs').select('data').eq('user_id', currentUser.id),
-      supa.from('gpx_data').select('id,routes,splits,points').eq('user_id', currentUser.id),
+      supa.from('runs').select('data').eq('user_id', userId),
+      supa.from('gpx_data').select('id,routes,splits,points').eq('user_id', userId),
     ]);
     const results = await Promise.race([fetchData, timeout]);
     const runsData = results[0]?.data;
