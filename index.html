@@ -844,18 +844,20 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
           <div class="section-header" style="margin-top:8px">
             <span class="section-title">Zonas de treino — últimas 8 semanas</span>
           </div>
-          <div style="padding:0 20px 20px" id="ia-zones-chart"></div>
+          <div style="padding:0 20px 4px;font-size:11px;color:var(--muted);line-height:1.6">
+            Volume semanal por zona de intensidade. <span style="color:#60a5fa">■</span> Z1 Recuperação &nbsp; <span style="color:#4ade80">■</span> Z2 Aeróbio &nbsp; <span style="color:#fbbf24">■</span> Z3 Limiar &nbsp; <span style="color:#ff6b35">■</span> Z4 Intervalos
+          </div>
+          <div style="padding:4px 20px 20px" id="ia-zones-chart"></div>
           <!-- Previsão de performance -->
           <div class="section-header">
             <span class="section-title">Previsão de performance</span>
           </div>
           <div style="padding:0 20px 20px" id="ia-forecast">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px" id="ia-forecast-cards"></div>
             <button onclick="gerarPrevisaoIA()" id="btn-previsao"
-              style="margin-top:12px;width:100%;padding:11px;background:rgba(232,255,71,.08);border:1px solid rgba(232,255,71,.2);color:var(--accent);border-radius:12px;font-family:var(--font-display);font-weight:700;font-size:13px;cursor:pointer">
+              style="width:100%;padding:11px;background:rgba(232,255,71,.08);border:1px solid rgba(232,255,71,.2);color:var(--accent);border-radius:12px;font-family:var(--font-display);font-weight:700;font-size:13px;cursor:pointer">
               ✦ Gerar previsão com IA
             </button>
-            <div id="ia-forecast-result" style="display:none;margin-top:12px;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;font-size:13px;line-height:1.8" id="ia-forecast-text"></div>
+            <div id="ia-forecast-result" style="display:none;margin-top:12px;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;font-size:13px;line-height:1.8"></div>
           </div>
           <!-- Carga e recuperação -->
           <div class="section-header">
@@ -3168,38 +3170,60 @@ Avalia a qualidade da execução e consistência dos splits. Compara com o hist�
 function renderIATab() {
   renderZonasSemanais();
   renderCargaTreino();
-  renderPrevisaoEstatica();
-
-  // Restore cached analyses from memory
-  const uid = currentUser?.id || 'anon';
-  const cachedPerfil = window._iaCache?.[uid]?.perfil;
-  const cachedPrevisao = window._iaCache?.[uid]?.previsao;
 
   const perfilResult = document.getElementById('ia-analise-result');
   const perfilText   = document.getElementById('ia-analise-text');
   const perfilBtn    = document.getElementById('btn-analise-completa');
+  const forecastResult = document.getElementById('ia-forecast-result');
+  const forecastBtn    = document.getElementById('btn-previsao');
+
+  // Check memory cache first
+  const uid = currentUser?.id || 'anon';
+  if (!window._iaCache) window._iaCache = {};
+  if (!window._iaCache[uid]) window._iaCache[uid] = {};
+
+  const cachedPerfil   = window._iaCache[uid].perfil;
+  const cachedPrevisao = window._iaCache[uid].previsao;
+
   if (cachedPerfil) {
     perfilText.innerHTML = cachedPerfil;
     perfilResult.style.display = '';
-    perfilBtn.style.display = 'none';
-  } else {
-    perfilResult.style.display = 'none';
-    perfilBtn.style.display = '';
-    perfilBtn.textContent = '✦ Analisar o meu perfil de corredor';
+    perfilBtn.textContent = '↺ Nova análise';
     perfilBtn.disabled = false;
+    perfilBtn.style.display = '';
+  } else {
+    // Try IndexedDB
+    dbGet('ia_perfil_' + uid).then(saved => {
+      if (saved?.text && (Date.now() - saved.ts) < 7 * 86400000) { // valid for 7 days
+        window._iaCache[uid].perfil = saved.text;
+        perfilText.innerHTML = saved.text;
+        perfilResult.style.display = '';
+        perfilBtn.textContent = '↺ Nova análise';
+        perfilBtn.disabled = false;
+        perfilBtn.style.display = '';
+      } else {
+        perfilResult.style.display = 'none';
+        perfilBtn.textContent = '✦ Analisar o meu perfil de corredor';
+        perfilBtn.disabled = false;
+        perfilBtn.style.display = '';
+      }
+    }).catch(() => {
+      perfilResult.style.display = 'none';
+      perfilBtn.style.display = '';
+    });
   }
 
-  const forecastResult = document.getElementById('ia-forecast-result');
-  const forecastBtn    = document.getElementById('btn-previsao');
   if (cachedPrevisao) {
     forecastResult.innerHTML = cachedPrevisao;
     forecastResult.style.display = '';
-    forecastBtn.style.display = 'none';
+    forecastBtn.textContent = '↺ Nova previsão';
+    forecastBtn.disabled = false;
+    forecastBtn.style.display = '';
   } else {
     forecastResult.style.display = 'none';
-    forecastBtn.style.display = '';
     forecastBtn.textContent = '✦ Gerar previsão com IA';
     forecastBtn.disabled = false;
+    forecastBtn.style.display = '';
   }
 }
 
@@ -3324,9 +3348,12 @@ function renderCargaTreino() {
     const d = new Date(r.date);
     return d >= monday && d <= sunday && classifyRun(r).type !== 'A';
   }).length;
-  const recoveryScore = Math.max(0, Math.min(100, 100 - (hardRuns * 20) + (daysSinceRun * 15)));
-  const recovColor = recoveryScore > 70 ? 'var(--success)' : recoveryScore > 40 ? 'var(--accent)' : 'var(--accent2)';
-  const recovLabel = recoveryScore > 70 ? 'Bem recuperado' : recoveryScore > 40 ? 'Recuperação parcial' : 'Precisa de descanso';
+  // Recovery score: starts at 20 after a run, +12 per day rest, capped at 100
+  // Needs ~7 days fully rest to reach 100. Hard runs drain faster.
+  const baseRecov = Math.min(100, daysSinceRun * 14);
+  const recoveryScore = Math.max(0, Math.min(100, baseRecov - (hardRuns * 15)));
+  const recovColor = recoveryScore >= 80 ? 'var(--success)' : recoveryScore >= 50 ? 'var(--accent)' : 'var(--accent2)';
+  const recovLabel = recoveryScore >= 80 ? 'Bem recuperado' : recoveryScore >= 50 ? 'Recuperação parcial' : 'Precisa de descanso';
 
   container.innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
@@ -3352,19 +3379,20 @@ function renderCargaTreino() {
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px">
       <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Volume — últimas 4 semanas</div>
       <div style="display:flex;gap:6px;align-items:flex-end;height:50px">
-        ${[...last4Weeks].reverse().map((km,i) => {
-          const h = maxKm => km > 0 ? Math.max(8, Math.round(km/maxKm*50)) : 4;
-          const max = Math.max(...last4Weeks, thisWeekKm, 1);
-          const isThis = i === 3;
-          return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
-            <div style="width:100%;height:${Math.max(4,Math.round(km/max*50))}px;background:${isThis?loadColor:'var(--surface2)'};border-radius:3px 3px 0 0;min-height:4px"></div>
-            <div style="font-size:9px;color:var(--muted)">${km.toFixed(0)}km</div>
-          </div>`;
-        }).join('')}
-        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
-          <div style="width:100%;height:${Math.max(4,Math.round(thisWeekKm/Math.max(...last4Weeks,thisWeekKm,1)*50))}px;background:${loadColor};border-radius:3px 3px 0 0;min-height:4px;border:1px dashed ${loadColor}"></div>
-          <div style="font-size:9px;color:${loadColor};font-weight:700">${thisWeekKm.toFixed(0)}km</div>
-        </div>
+        ${(() => {
+          const allWeeks = [...[...last4Weeks].reverse(), thisWeekKm];
+          const max = Math.max(...allWeeks, 1);
+          return allWeeks.map((km, i) => {
+            const isThisWeek = i === 4;
+            const bg = isThisWeek ? loadColor : 'rgba(255,255,255,.12)';
+            const labelColor = isThisWeek ? loadColor : 'var(--muted)';
+            const label = isThisWeek ? 'esta' : `-${4-i}sem`;
+            return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+              <div style="width:100%;height:${Math.max(4,Math.round(km/max*50))}px;background:${bg};border-radius:3px 3px 0 0;${isThisWeek&&km<avgKm?'border:1px dashed '+loadColor:''}"></div>
+              <div style="font-size:9px;color:${labelColor};font-weight:${isThisWeek?'700':'400'}">${km.toFixed(0)}km</div>
+            </div>`;
+          }).join('');
+        })()}
       </div>
       <div style="display:flex;gap:6px;margin-top:2px">
         ${[...last4Weeks].reverse().map((_,i) => `<div style="flex:1;text-align:center;font-size:8px;color:var(--muted)">-${3-i}sem</div>`).join('')}
@@ -3450,6 +3478,9 @@ async function analisarCorredorIA() {
   const textEl = document.getElementById('ia-analise-text');
   btn.textContent = '✦ A analisar...';
   btn.disabled = true;
+  // Clear previous cache to force fresh analysis
+  const uid = currentUser?.id || 'anon';
+  if (window._iaCache?.[uid]) window._iaCache[uid].perfil = null;
 
   const athlete = analisarCorredor();
   if (!athlete) { btn.textContent = '✦ Analisar o meu perfil de corredor'; btn.disabled = false; return; }
@@ -3485,11 +3516,12 @@ Analisa:
     textEl.innerHTML = text;
     resultEl.style.display = '';
     btn.style.display = 'none';
-    // Cache result
+    // Cache in memory and persist to IndexedDB
     const uid = currentUser?.id || 'anon';
     if (!window._iaCache) window._iaCache = {};
     if (!window._iaCache[uid]) window._iaCache[uid] = {};
     window._iaCache[uid].perfil = text;
+    dbSet('ia_perfil_' + uid, { text, ts: Date.now() }).catch(() => {});
   } catch(e) {
     textEl.innerHTML = `<span style="color:var(--accent2)">Erro: ${e.message}</span>`;
     resultEl.style.display = '';
@@ -4492,7 +4524,7 @@ async function syncStrava(fullSync = false) {
             // Also filter by speed: if distance gain < 1m/s over interval it's a pause
             const distGain = (dists[i] - dists[i - 1]) * 1000; // metres
             const speed = intervalSecs > 0 ? distGain / intervalSecs : 0; // m/s
-            const likelyMoving = wasMoving && speed > 0.5; // >0.5 m/s = not paused
+            const likelyMoving = wasMoving && speed > 0.2; // >0.2 m/s (~1.2km/h) = not paused (lower threshold to avoid cutting slow GPS points)
             movingTime[i] = movingTime[i - 1] + (likelyMoving ? intervalSecs : 0);
           }
 
@@ -5524,11 +5556,16 @@ function getTipoColor(tipo) {
 
 // ── Check if run was done for a training day ──
 function treinoFoiFeito(treinoDate) {
-  // Check if there's a run within ±1 day of the planned date
+  // A run counts as done if it happened on the planned date or within 2 days AFTER
+  // (athlete may do the workout 1-2 days late, but never counts future workouts as done)
   const d = new Date(treinoDate); d.setHours(0,0,0,0);
+  const today = new Date(); today.setHours(0,0,0,0);
+  if (d > today) return false; // never mark future workouts as done
   return runs.some(r => {
     const rd = new Date(r.date); rd.setHours(0,0,0,0);
-    return Math.abs(rd-d) <= 86400000;
+    // Run must be on the same day or up to 2 days after the planned date
+    const diff = rd - d; // positive = run happened after planned date
+    return diff >= 0 && diff <= 2 * 86400000;
   });
 }
 
