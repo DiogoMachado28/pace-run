@@ -840,14 +840,7 @@ canvas.chart { width: 100% !important; height: 160px !important; padding: 10px 1
           <div id="ia-analise-result" style="display:none;padding:0 20px 16px">
             <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;font-size:13px;line-height:1.8;color:var(--text)" id="ia-analise-text"></div>
           </div>
-          <!-- Zonas de treino semanais -->
-          <div class="section-header" style="margin-top:8px">
-            <span class="section-title">Zonas de treino — últimas 8 semanas</span>
-          </div>
-          <div style="padding:0 20px 4px;font-size:11px;color:var(--muted);line-height:1.6">
-            Volume semanal por zona de intensidade. <span style="color:#60a5fa">■</span> Z1 Recuperação &nbsp; <span style="color:#4ade80">■</span> Z2 Aeróbio &nbsp; <span style="color:#fbbf24">■</span> Z3 Limiar &nbsp; <span style="color:#ff6b35">■</span> Z4 Intervalos
-          </div>
-          <div style="padding:4px 20px 20px" id="ia-zones-chart"></div>
+
           <!-- Previsão de performance -->
           <div class="section-header">
             <span class="section-title">Previsão de performance</span>
@@ -3168,7 +3161,6 @@ Avalia a qualidade da execução e consistência dos splits. Compara com o hist�
 
 // ── Feature 2: Render IA tab (zones + load) ──
 function renderIATab() {
-  renderZonasSemanais();
   renderCargaTreino();
 
   const perfilResult = document.getElementById('ia-analise-result');
@@ -3333,10 +3325,15 @@ function renderCargaTreino() {
   }
   const avgKm = last4Weeks.reduce((a,b)=>a+b,0) / last4Weeks.length || 1;
 
-  // Days since last run — sort to get most recent
+  // Days since last run — compare calendar days only (ignore time of day)
   const mostRecentRun = runs.length ? [...runs].sort((a,b) => new Date(b.date)-new Date(a.date))[0] : null;
   const lastRunDate = mostRecentRun ? new Date(mostRecentRun.date) : null;
-  const daysSinceRun = lastRunDate ? Math.max(0, Math.floor((now - lastRunDate) / 86400000)) : 99;
+  let daysSinceRun = 99;
+  if (lastRunDate) {
+    const todayMidnight = new Date(now); todayMidnight.setHours(0,0,0,0);
+    const runMidnight = new Date(lastRunDate); runMidnight.setHours(0,0,0,0);
+    daysSinceRun = Math.round((todayMidnight - runMidnight) / 86400000);
+  }
 
   // Load score (0-100): compare this week to avg
   const loadPct = Math.min(Math.round(thisWeekKm / avgKm * 100), 150);
