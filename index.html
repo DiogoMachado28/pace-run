@@ -4376,8 +4376,16 @@ let stravaTokens = null; // { access_token, refresh_token, expires_at, athlete_i
 
 async function loadStravaTokens() {
   if (!currentUser) return;
-  const { data } = await supa.from('strava_tokens').select('*').eq('user_id', currentUser.id).maybeSingle();
-  stravaTokens = data || null;
+  // Always show button immediately (may update after load)
+  updateStravaBtn();
+  try {
+    const { data } = await supa.from('strava_tokens')
+      .select('*').eq('user_id', currentUser.id).maybeSingle();
+    stravaTokens = data || null;
+  } catch(e) {
+    console.warn('loadStravaTokens error:', e.message);
+    stravaTokens = null;
+  }
   updateStravaBtn();
 }
 
@@ -5726,49 +5734,64 @@ function resetarPlano() {
 }
 
 async function savePlano() {
-  // Always save to IndexedDB with user isolation
+  if (!planoData) return;
+  // Add timestamp for cross-device sync
+  planoData._savedAt = Date.now();
+
+  // Save to IndexedDB (fast local cache)
   try {
     await dbSet('plano_' + (currentUser?.id || 'anon'), planoData);
   } catch(e) { console.warn('savePlano IndexedDB:', e.message); }
 
-  // Save to Supabase
+  // Save to Supabase (source of truth — syncs across devices)
   if (!currentUser) return;
   try {
     const { error } = await supa.from('user_settings').upsert({
       user_id: currentUser.id, key: 'plano', value: planoData,
     }, { onConflict: 'user_id,key' });
     if (error) console.warn('savePlano Supabase:', error.message);
+    else console.log('savePlano: synced to Supabase');
   } catch(e) { console.warn('savePlano Supabase exception:', e.message); }
 }
 
 async function loadPlano() {
-  // Try IndexedDB first (per user)
+  // Load from both sources and use the most recent one
+  let localData = null;
+  let remoteData = null;
+
+  // 1. Read IndexedDB (instant)
   try {
     const local = await dbGet('plano_' + (currentUser?.id || 'anon'));
     if (local && typeof local === 'object' && Array.isArray(local.semanas)) {
-      planoData = local;
-      console.log('loadPlano: loaded from IndexedDB, semanas:', planoData.semanas.length);
-      return;
+      localData = local;
     }
   } catch(e) { console.warn('loadPlano IndexedDB:', e.message); }
 
-  if (!currentUser) return;
+  // 2. Read Supabase (source of truth)
+  if (currentUser) {
+    try {
+      const { data, error } = await supa.from('user_settings')
+        .select('value').eq('user_id', currentUser.id).eq('key', 'plano').maybeSingle();
+      if (!error && data?.value && Array.isArray(data.value.semanas)) {
+        remoteData = data.value;
+      }
+    } catch(e) { console.warn('loadPlano Supabase:', e.message); }
+  }
 
-  // Fallback to Supabase
-  try {
-    const { data, error } = await supa.from('user_settings')
-      .select('value').eq('user_id', currentUser.id).eq('key', 'plano').maybeSingle();
-    if (error) { console.warn('loadPlano Supabase:', error.message); return; }
-    const v = data?.value;
-    if (v && typeof v === 'object' && Array.isArray(v.semanas)) {
-      planoData = v;
-      console.log('loadPlano: loaded from Supabase, semanas:', planoData.semanas.length);
-      // Cache locally for next time
-      try { await dbSet('plano_' + currentUser.id, planoData); } catch(e) {}
-    } else {
-      console.log('loadPlano: no valid plan found');
-    }
-  } catch(e) { console.warn('loadPlano Supabase exception:', e.message); }
+  // 3. Pick the most recent one (by _savedAt timestamp)
+  if (remoteData && localData) {
+    planoData = (remoteData._savedAt || 0) >= (localData._savedAt || 0) ? remoteData : localData;
+  } else {
+    planoData = remoteData || localData || null;
+  }
+
+  if (planoData) {
+    console.log('loadPlano: loaded', planoData.semanas?.length, 'semanas, source:', remoteData ? 'Supabase' : 'IndexedDB');
+    // Update IndexedDB with the winner
+    try { await dbSet('plano_' + (currentUser?.id || 'anon'), planoData); } catch(e) {}
+  } else {
+    console.log('loadPlano: no plan found');
+  }
 }
 
 // ══════════════════════════════════════════
