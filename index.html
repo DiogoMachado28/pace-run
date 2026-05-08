@@ -4824,7 +4824,7 @@ function getTargetPace(athlete) {
     const easyFromTarget = targetPaceSec / 0.85;
     // Blend with current fitness — don't generate impossible plan
     const easyFromHistory = athlete.avgPaceSec * 1.10;
-    return Math.max(easyFromTarget, easyFromHistory);
+    return Math.max(easyFromTarget, easyFromHistory * 0.95);
   }
   return athlete.avgPaceSec * 1.10; // 10% easier than current avg
 }
@@ -5242,7 +5242,7 @@ async function gerarPlano() {
 
   const dataProvaInput = document.getElementById('plano-data-prova').value;
   // AI generates 2 weeks at a time — shorter JSON, easier to adjust weekly
-  const numSemanas = 3;
+  const numSemanas = 2;
 
   // Show loading state
   document.getElementById('plano-setup').style.display = 'none';
@@ -5357,11 +5357,11 @@ Total corridas: ${athlete.totalRuns}${athlete.totalRuns < 5 ? ' (POUCOS DADOS �
   } else {
     // Estimate from avg pace using standard percentages
     const avg = athlete.avgPaceSec;
-    zRecupSec  = r5(avg * 1.18);
-    zFacilSec  = r5(avg * 1.10);
-    zLongoSec  = r5(avg * 1.12);
-    zLimiarSec = r5(avg * 0.95);
-    zSeriesSec = r5(avg * 0.90);
+    zRecupSec  = r5(avg * 1.15);
+    zFacilSec  = r5(avg * 1.05);
+    zLongoSec  = r5(avg * 1.08);
+    zLimiarSec = r5(avg * 0.90);
+    zSeriesSec = r5(avg * 0.82);
   }
 
   // If athlete has a race target, blend zones toward target pace
@@ -5415,12 +5415,6 @@ Volume: ${athlete.avgWeeklyKm.toFixed(1)}km/sem | Longa recente: ${athlete.longe
 ${zoneStr}
 ${trainingHistory}
 
-NÍVEL DO ATLETA:
-- Volume semanal médio: ${Math.round(athlete.avgWeeklyKm)}km
-- Corrida mais longa: ${Math.round(athlete.longestRun)}km
-- Total de corridas: ${athlete.totalRuns}
-- Tendência recente: ${athlete.trend}
-
 OBJETIVO: ${objetivoStr} ${semanasTotaisEstimadas}
 
 DATAS DISPONÍVEIS — USA ESTAS DATAS EXATAS:
@@ -5446,7 +5440,7 @@ VALIDAÇÃO DO OBJETIVO (faz isto ANTES de gerar o plano):
 REGRAS DE TREINO:
 1. Longo é SEMPRE mais lento que aeróbio (nunca mais rápido)
 2. Aquecimento e retorno SEMPRE mais lentos que o bloco principal
-3. Semana 1 deve iniciar imediatamente estímulo relevante. Só usar adaptação se o atleta tiver baixo volume ou pouca experiência.
+3. Semana 1 = base/adaptação, NUNCA taper (taper só nas últimas 2 semanas antes da prova)
 4. Sem 2 treinos duros (B1/B2) consecutivos
 5. Corrida longa (C) no último dia disponível da semana
 6. Volume próximo de ${athlete.avgWeeklyKm.toFixed(0)}km/semana (actual do atleta)
