@@ -5479,29 +5479,7 @@ Tipos: A=Continuo B1=Series(Nx dist+recup) B2=Limiar C=Longo`;
   const jsonEnd   = clean.lastIndexOf('}');
   if (jsonStart === -1 || jsonEnd === -1) throw new Error('Resposta da IA não contém JSON válido');
   clean = clean.slice(jsonStart, jsonEnd + 1);
-  // Sanitize: remove control chars and problematic unicode that break JSON.parse
-clean = clean.replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ');
-// Fix common Gemini JSON issues: trailing commas before } or ]
-clean = clean.replace(/,(\s*[}\]])/g, '$1');
-
-let plano;
-try {
-  plano = JSON.parse(clean);
-} catch(e) {
-  // Try to recover: find the last complete semana and truncate there
-  const lastComplete = clean.lastIndexOf('{"num":');
-  if (lastComplete > 0) {
-    // Try wrapping what we have into a valid structure
-    const partial = clean.slice(0, clean.lastIndexOf('}', lastComplete) + 1);
-    try {
-      plano = JSON.parse(partial + ']}');
-    } catch(e2) {
-      throw new Error('JSON inválido após sanitização: ' + e.message);
-    }
-  } else {
-    throw new Error('Resposta da IA não contém JSON válido: ' + e.message);
-  }
-}
+  const plano = JSON.parse(clean);
 
   return {
     ...plano,
